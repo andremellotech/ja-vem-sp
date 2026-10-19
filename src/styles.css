@@ -1241,3 +1241,20 @@ code {
     scroll-behavior: auto !important;
   }
 }
+
+.map-hint {
+  position: absolute;
+  top: 74px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #dfe6d6;
+  color: #3d5a4c;
+  font-size: 11px;
+  box-shadow: 0 2px 10px rgba(20, 44, 40, 0.12);
+  pointer-events: none;
+  white-space: nowrap;
+}

@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -27,6 +33,11 @@ import {
 } from "./contracts";
 import TransitMap from "./features/map/TransitMap";
 import {
+  distanceM,
+  loadNetwork,
+  type NetStopIndex,
+} from "./features/stops/network";
+import {
   loadFavorites,
   saveFavorites,
   loadFavoriteLines,
@@ -35,6 +46,12 @@ import {
 const configuredBase =
   (import.meta as ImportMeta & { env: Record<string, string> }).env
     .VITE_API_BASE_URL || "";
+const validStop = (s: Stop) =>
+  !!s &&
+  typeof s.lat === "number" &&
+  typeof s.lon === "number" &&
+  Number.isFinite(s.lat) &&
+  Number.isFinite(s.lon);
 const time = (v: string | null) =>
   v
     ? new Date(v).toLocaleTimeString("pt-BR", {
@@ -52,6 +69,9 @@ export default function App({
     [lines, setLines] = useState<Line[]>([]),
     [line, setLine] = useState<Line | null>(null),
     [stops, setStops] = useState<Stop[]>([]),
+    [foundStops, setFoundStops] = useState<Stop[]>([]),
+    [network, setNetwork] = useState<NetStopIndex | null>(null),
+    [stopsBusy, setStopsBusy] = useState(false),
     [vehicles, setVehicles] = useState<Vehicle[]>([]),
     [stop, setStop] = useState<string | null>(null),
     [arrivals, setArrivals] = useState<Arrival[]>([]);
@@ -116,6 +136,16 @@ export default function App({
       previous?.focus();
     };
   }, [settings]);
+  useEffect(() => {
+    const c = new AbortController();
+    const base =
+      (import.meta as ImportMeta & { env: Record<string, string> }).env
+        .BASE_URL || "./";
+    loadNetwork(base + "data/stops.json", c.signal)
+      .then((n) => setNetwork(n))
+      .catch(() => {});
+    return () => c.abort();
+  }, []);
   const searchController = useRef<AbortController | null>(null),
     generation = useRef(0);
   useEffect(() => {
@@ -142,9 +172,20 @@ export default function App({
     setSearched(true);
     setLine(null);
     setStops([]);
+    setFoundStops([]);
     setVehicles([]);
     setStop(null);
     setLines([]);
+    setStopsBusy(true);
+    request<Stop[]>(apiBase, "/api/stops?q=" + encodeURIComponent(q), c.signal)
+      .then((s) => {
+        if (current === generation.current)
+          setFoundStops(s.data.filter(validStop));
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (current === generation.current) setStopsBusy(false);
+      });
     try {
       const r = await request<Line[]>(
         apiBase,
@@ -178,13 +219,16 @@ export default function App({
     setUpdated(null);
     setObserved(null);
     setError("");
-    let running = false;
+    let running = false,
+      stopsLoaded = false;
     async function refresh() {
       if (running || document.hidden) return;
       running = true;
       try {
         const [s, v] = await Promise.all([
-          request<Stop[]>(apiBase, "/api/lines/" + id + "/stops", c.signal),
+          stopsLoaded
+            ? null
+            : request<Stop[]>(apiBase, "/api/lines/" + id + "/stops", c.signal),
           request<Vehicle[]>(
             apiBase,
             "/api/lines/" + id + "/vehicles",
@@ -192,7 +236,10 @@ export default function App({
           ),
         ]);
         if (active) {
-          setStops(s.data);
+          if (s) {
+            setStops(s.data);
+            stopsLoaded = true;
+          }
           setVehicles(v.data);
           setUpdated(v.fetchedAt);
           setObserved(v.observedAt);
@@ -228,7 +275,7 @@ export default function App({
     setArrivalObserved(null);
     setArrivalError(false);
     setArrivalLoading(false);
-    if (!stop || !line) return;
+    if (!stop) return;
     const c = new AbortController();
     let active = true,
       running = false;
@@ -239,7 +286,12 @@ export default function App({
       try {
         const r = await request<Arrival[]>(
           apiBase,
-          "/api/stops/" + stop + "/arrivals?lineId=" + line!.id,
+          "/api/stops/" +
+            stop +
+            "/arrivals" +
+            (line && stopsRef.current.some((s) => s.id === stop)
+              ? "?lineId=" + line.id
+              : ""),
           c.signal,
         );
         if (active) {
@@ -273,7 +325,12 @@ export default function App({
       document.removeEventListener("visibilitychange", visible);
     };
   }, [stop, line, apiBase]);
-  const selectStop = useCallback((id: string) => setStop(id), []);
+  const stopsRef = useRef<Stop[]>([]);
+  stopsRef.current = stops;
+  const selectStop = useCallback((id: string) => {
+    setStop(id);
+    setTab("search");
+  }, []);
   function favorite(id: string) {
     const ids = favorites.includes(id)
       ? favorites.filter((x) => x !== id)
@@ -306,7 +363,7 @@ export default function App({
       (p) => {
         setLocation([p.coords.latitude, p.coords.longitude]);
         setNotice(
-          "Sua posição aparece em azul no mapa. Busque uma linha para consultar suas paradas.",
+          "Sua posição aparece em azul no mapa. Veja as paradas por perto ou busque uma linha ou parada.",
         );
       },
       () =>
@@ -320,7 +377,59 @@ export default function App({
     tab === "favorites"
       ? savedLines.filter((l) => favorites.includes(l.id))
       : lines;
-  const selectedStop = stops.find((s) => s.id === stop);
+  const mapStops = line ? stops : foundStops;
+  const selectedStop: { id: string; name: string } | undefined =
+    mapStops.find((s) => s.id === stop) ??
+    (stop ? network?.byId.get(stop) : undefined);
+  const nearby = useMemo(
+    () =>
+      network && location
+        ? network.nearest(location[0], location[1], 600, 8)
+        : [],
+    [network, location],
+  );
+  const arrivalCard = selectedStop && (
+    <div className="arrival-card">
+      <span className="eyebrow">CHEGADAS NESTA PARADA</span>
+      <h3>{selectedStop.name}</h3>
+      {arrivals.length ? (
+        arrivals.map((a, i) => (
+          <div className="arrival" key={a.vehicleId + i}>
+            <BusFront size={18} />
+            <span>
+              {a.lineCode}
+              <small>Veículo {a.vehicleId}</small>
+            </span>
+            <strong>{a.expectedLocalTime || "—"}</strong>
+          </div>
+        ))
+      ) : (
+        <p>
+          {arrivalError
+            ? "Previsões indisponíveis nesta atualização."
+            : arrivalLoading
+              ? "Consultando previsões…"
+              : "Nenhuma previsão disponível nesta consulta."}
+        </p>
+      )}
+      <small>
+        {arrivalUpdated && (
+          <>
+            Previsões consultadas às {time(arrivalUpdated)} · GPS{" "}
+            {time(arrivalObserved)}.<br />
+          </>
+        )}
+        {arrivalObserved &&
+          Date.now() - Date.parse(arrivalObserved) > 120000 && (
+            <>
+              Previsões antigas — confirme antes de sair.
+              <br />
+            </>
+          )}
+        Horários previstos pela SPTrans, no fuso de São Paulo. Podem mudar.
+      </small>
+    </div>
+  );
   const stale = observed && Date.now() - Date.parse(observed) > 120000;
   return (
     <>
@@ -392,7 +501,7 @@ export default function App({
               <input
                 id="line-search"
                 aria-label="Linha ou destino"
-                placeholder="Linha, terminal ou destino"
+                placeholder="Linha, parada ou endereço"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
@@ -489,49 +598,7 @@ export default function App({
                     {stale ? "· posições antigas" : ""}
                   </p>
                 )}
-                {selectedStop && (
-                  <div className="arrival-card">
-                    <span className="eyebrow">CHEGADAS NESTA PARADA</span>
-                    <h3>{selectedStop.name}</h3>
-                    {arrivals.length ? (
-                      arrivals.map((a, i) => (
-                        <div className="arrival" key={a.vehicleId + i}>
-                          <BusFront size={18} />
-                          <span>
-                            {a.lineCode}
-                            <small>Veículo {a.vehicleId}</small>
-                          </span>
-                          <strong>{a.expectedLocalTime || "—"}</strong>
-                        </div>
-                      ))
-                    ) : (
-                      <p>
-                        {arrivalError
-                          ? "Previsões indisponíveis nesta atualização."
-                          : arrivalLoading
-                            ? "Consultando previsões…"
-                            : "Nenhuma previsão disponível nesta consulta."}
-                      </p>
-                    )}
-                    <small>
-                      {arrivalUpdated && (
-                        <>
-                          Previsões consultadas às {time(arrivalUpdated)} · GPS{" "}
-                          {time(arrivalObserved)}.<br />
-                        </>
-                      )}
-                      {arrivalObserved &&
-                        Date.now() - Date.parse(arrivalObserved) > 120000 && (
-                          <>
-                            Previsões antigas — confirme antes de sair.
-                            <br />
-                          </>
-                        )}
-                      Horários previstos pela SPTrans, no fuso de São Paulo.
-                      Podem mudar.
-                    </small>
-                  </div>
-                )}
+                {arrivalCard}
                 <div className="stop-list">
                   {stops.map((s, i) => (
                     <button
@@ -554,6 +621,40 @@ export default function App({
               </>
             ) : (
               <>
+                {tab === "search" && arrivalCard}
+                {tab === "search" && nearby.length > 0 && (
+                  <>
+                    <div className="guide-label">PARADAS PERTO DE VOCÊ</div>
+                    <div className="stop-list">
+                      {nearby.map((s) => (
+                        <button
+                          className={stop === s.id ? "stop selected" : "stop"}
+                          key={s.id}
+                          onClick={() => selectStop(s.id)}
+                        >
+                          <span className="stop-number">
+                            <MapPin size={12} />
+                          </span>
+                          <span>
+                            {s.name}
+                            <small style={{ display: "block" }}>
+                              {Math.round(
+                                distanceM(
+                                  location![0],
+                                  location![1],
+                                  s.lat,
+                                  s.lon,
+                                ),
+                              )}{" "}
+                              m{s.ref ? " · " + s.ref : ""}
+                            </small>
+                          </span>
+                          <ChevronRight size={16} />
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
                 {visibleLines.map((l) => (
                   <div className="line-result" key={l.id}>
                     <button
@@ -587,15 +688,44 @@ export default function App({
                     </button>
                   </div>
                 ))}
+                {tab === "search" && foundStops.length > 0 && (
+                  <>
+                    <div className="guide-label">PARADAS ENCONTRADAS</div>
+                    <div className="stop-list">
+                      {foundStops.map((s) => (
+                        <button
+                          className={stop === s.id ? "stop selected" : "stop"}
+                          key={s.id}
+                          onClick={() => setStop(s.id)}
+                        >
+                          <span className="stop-number">
+                            <MapPin size={12} />
+                          </span>
+                          <span>
+                            {s.name}
+                            {s.address && (
+                              <small style={{ display: "block" }}>
+                                {s.address}
+                              </small>
+                            )}
+                          </span>
+                          <ChevronRight size={16} />
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
                 {!busy &&
+                  !stopsBusy &&
                   !error &&
                   searched &&
                   tab === "search" &&
-                  !lines.length && (
+                  !lines.length &&
+                  !foundStops.length && (
                     <div className="empty-state">
                       <Search />
-                      <h3>Nenhuma linha encontrada</h3>
-                      <p>Tente outro número, terminal ou destino.</p>
+                      <h3>Nenhuma linha ou parada encontrada</h3>
+                      <p>Tente outro número, nome de parada ou endereço.</p>
                     </div>
                   )}
                 {tab === "favorites" && !visibleLines.length && (
@@ -661,7 +791,8 @@ export default function App({
         </aside>
         <section className="map-section" aria-label="Explorar mapa">
           <TransitMap
-            stops={stops}
+            network={network}
+            stops={mapStops}
             vehicles={vehicles}
             selectedStop={stop}
             onSelectStop={selectStop}
@@ -709,7 +840,7 @@ export default function App({
                   <br />
                   Você não precisa esperar no escuro.
                 </h2>
-                <p>Busque uma linha para descobrir seu caminho.</p>
+                <p>Busque uma linha ou parada para descobrir seu caminho.</p>
               </div>
               <ArrowUpRight className="callout-arrow" size={24} />
             </div>

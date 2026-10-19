@@ -1,34 +1,100 @@
-"""Converte um GTFS obtido pelo operador em JSON validado. Não faz downloads."""
-import csv,io,json,zipfile,math,hashlib,re,argparse
+"""Converte o GTFS da SPTrans (obtido por você no portal) em public/data/stops.json.
+
+Uso:
+  python scripts/import-gtfs.py data/gtfs.zip public/data/stops.json \
+    --source-url https://www.sptrans.com.br/desenvolvedores/ \
+    --retrieved-at 2026-10-19 --license "CONDIÇÕES DO PORTAL SPTRANS"
+
+Não faz downloads. Linhas inválidas são ignoradas e contadas no relatório;
+o arquivo gerado fica pequeno o bastante para ser carregado pelo navegador.
+"""
+import argparse, csv, hashlib, io, json, math, zipfile
 from pathlib import Path
 
-def seconds(value):
- if not re.fullmatch(r'\d{1,3}:[0-5]\d:[0-5]\d',value):raise ValueError('Horário GTFS inválido')
- h,m,s=map(int,value.split(':'));return h*3600+m*60+s
+RAIL_TYPES = {"1", "2"}  # metrô e trem (CPTM)
+
+
+def _rows(z, name, required=True):
+    if name not in z.namelist():
+        if required:
+            raise ValueError("Tabela ausente: " + name)
+        return iter(())
+    return csv.DictReader(io.TextIOWrapper(z.open(name), encoding="utf-8-sig", newline=""))
+
+
+def _valid_coord(lat, lon):
+    return math.isfinite(lat) and math.isfinite(lon) and abs(lat) <= 90 and abs(lon) <= 180
+
 
 def convert(source):
- with zipfile.ZipFile(source) as z:
-  total=sum(i.file_size for i in z.infolist())
-  if total>2_000_000_000:raise ValueError('GTFS excede limite de leitura')
-  def rows(name):
-   if name not in z.namelist():raise ValueError('Tabela ausente: '+name)
-   with z.open(name) as f:return list(csv.DictReader(io.TextIOWrapper(f,encoding='utf-8-sig')))
-  stops=[]
-  for r in rows('stops.txt'):
-   lat,lon=float(r['stop_lat']),float(r['stop_lon'])
-   if not math.isfinite(lat) or not math.isfinite(lon) or abs(lat)>90 or abs(lon)>180:raise ValueError('Coordenada inválida')
-   stops.append(dict(id=r['stop_id'],name=r['stop_name'],lat=lat,lon=lon))
-  routes=rows('routes.txt');trips=rows('trips.txt');times=rows('stop_times.txt')
-  stop_ids={r['id'] for r in stops};route_ids={r['route_id'] for r in routes};trip_ids={r['trip_id'] for r in trips}
-  for r in trips:
-   if r['route_id'] not in route_ids:raise ValueError('Rota ausente')
-  output=[]
-  for r in times:
-   if r['trip_id'] not in trip_ids or r['stop_id'] not in stop_ids:raise ValueError('Referência de viagem/parada inválida')
-   output.append(dict(tripId=r['trip_id'],stopId=r['stop_id'],sequence=int(r['stop_sequence']),arrivalSeconds=seconds(r['arrival_time']) if r['arrival_time'] else None,departureSeconds=seconds(r['departure_time']) if r['departure_time'] else None))
-  return dict(stops=stops,routes=routes,trips=trips,stopTimes=output)
+    skipped = {"coordenada_invalida": 0, "sem_id": 0}
+    with zipfile.ZipFile(source) as z:
+        if sum(i.file_size for i in z.infolist()) > 2_000_000_000:
+            raise ValueError("GTFS excede limite de leitura")
+        # tipo de cada rota -> quais paradas são servidas por trem/metrô e por ônibus
+        route_type = {r["route_id"]: r.get("route_type", "3") for r in _rows(z, "routes.txt")}
+        trip_type = {t["trip_id"]: route_type.get(t["route_id"], "3") for t in _rows(z, "trips.txt")}
+        rail, bus = set(), set()
+        for r in _rows(z, "stop_times.txt"):
+            (rail if trip_type.get(r["trip_id"], "3") in RAIL_TYPES else bus).add(r["stop_id"])
+        stops, seen = [], set()
+        for r in _rows(z, "stops.txt"):
+            sid = (r.get("stop_id") or "").strip()
+            if not sid or sid in seen:
+                skipped["sem_id"] += 1
+                continue
+            try:
+                lat, lon = float(r["stop_lat"]), float(r["stop_lon"])
+            except (KeyError, ValueError):
+                lat = lon = math.nan
+            if not _valid_coord(lat, lon):
+                skipped["coordenada_invalida"] += 1
+                continue
+            seen.add(sid)
+            ref = (r.get("stop_desc") or "").strip()
+            if ref.startswith("Ref.:"):
+                ref = ref[5:].strip()
+            stops.append([
+                sid,
+                (r.get("stop_name") or "").strip() or "Parada " + sid,
+                ref,
+                round(lat, 6),
+                round(lon, 6),
+                1 if sid in rail and sid not in bus else 0,
+            ])
+        dates = [d for c in _rows(z, "calendar.txt", False) for d in (c.get("start_date"), c.get("end_date")) if d]
+    return {
+        "version": 1,
+        "fields": ["id", "name", "ref", "lat", "lon", "rail"],
+        "stops": stops,
+        "skipped": skipped,
+        "validFrom": min(dates) if dates else None,
+        "validTo": max(dates) if dates else None,
+    }
 
-if __name__=='__main__':
- parser=argparse.ArgumentParser();parser.add_argument('source',type=Path);parser.add_argument('output',type=Path);parser.add_argument('--source-url',required=True);parser.add_argument('--retrieved-at',required=True);parser.add_argument('--license',required=True);a=parser.parse_args()
- data=convert(a.source);data['provenance']={'source':a.source_url,'retrievedAt':a.retrieved_at,'license':a.license,'sha256':hashlib.file_digest(a.source.open('rb'),'sha256').hexdigest(),'limitations':'Dados estáticos, sem posições ou previsões em tempo real. Não contém motor de rotas.'}
- a.output.write_text(json.dumps(data,ensure_ascii=False,separators=(',',':')),encoding='utf8')
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("source", type=Path)
+    p.add_argument("output", type=Path)
+    p.add_argument("--source-url", required=True)
+    p.add_argument("--retrieved-at", required=True)
+    p.add_argument("--license", required=True)
+    a = p.parse_args()
+    data = convert(a.source)
+    with a.source.open("rb") as f:
+        digest = hashlib.sha256(f.read()).hexdigest()
+    data["provenance"] = {
+        "source": a.source_url,
+        "retrievedAt": a.retrieved_at,
+        "license": a.license,
+        "sha256": digest,
+        "limitations": "Dados estáticos de paradas. Sem posições nem previsões em tempo real.",
+    }
+    a.output.parent.mkdir(parents=True, exist_ok=True)
+    a.output.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    print(f"{len(data['stops'])} paradas gravadas em {a.output} ({a.output.stat().st_size/1e6:.2f} MB); ignoradas: {data['skipped']}")
+
+
+if __name__ == "__main__":
+    main()

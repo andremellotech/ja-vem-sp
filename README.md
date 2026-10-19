@@ -44,11 +44,18 @@ O workflow testa a aplicação antes de publicar. Mudanças na API exigem public
 
 ## Importação GTFS
 
-```sh
-python scripts/import-gtfs.py feed.zip rede.json --source-url URL_OFICIAL --retrieved-at 2026-10-19 --license CONDICOES_DO_FORNECEDOR
+O mapa mostra todas as paradas do GTFS oficial (`public/data/stops.json`), carregado pelo navegador sem passar pela API. Para atualizar:
+
+1. Baixe o `.zip` do GTFS no portal de desenvolvedores da SPTrans e guarde em `data/` (essa pasta está no `.gitignore`; não publique o feed original).
+2. Gere o arquivo de paradas:
+
+```
+python scripts/import-gtfs.py data/gtfs.zip public/data/stops.json --source-url https://www.sptrans.com.br/desenvolvedores/ --retrieved-at AAAA-MM-DD --license "CONDICOES_DO_PORTAL"
 ```
 
-O importador valida coordenadas, referências e horários estendidos (por exemplo 25:10:00). O resultado é preparatório para dados estáticos; não existe ainda planejador de viagens. Não são distribuídos feeds sem licença verificada. Calendários, exceções, frequências e conexões precisam ser incorporados antes de calcular rotas de passageiros.
+3. Faça commit de `public/data/stops.json`. O arquivo traz a procedência (hash, data, validade do calendário). Linhas inválidas são ignoradas e contadas no relatório do comando.
+
+O importador ainda não gera o índice de linhas, horários e frequências; o planejamento de rotas (origem e destino) depende desse passo. O identificador da parada no GTFS (`stop_id`) é o usado nas consultas de previsão; confira em produção que as previsões voltam para paradas escolhidas no mapa.
 
 ## APIs próprias
 - `GET /api/health`

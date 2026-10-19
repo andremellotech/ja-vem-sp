@@ -167,6 +167,33 @@ describe("API de transporte", () => {
     const result = await createSptrans("secret", fetcher as typeof fetch).getStops("1");
     expect(result.data[0]).toMatchObject({ id: "1234", name: "Parada 1234" });
   });
+  it("busca paradas por nome ou endereço e normaliza o resultado", async () => {
+    const calls: string[] = [];
+    const fetcher = async (input: RequestInfo | URL) => {
+      calls.push(String(input));
+      return String(input).includes("Autenticar")
+        ? new Response("true", { headers: cookieHeaders })
+        : Response.json([
+            { cp: 10, np: "Paulista", ed: "Av. Paulista, 1000", py: -23.56, px: -46.65 },
+            { cp: 11, np: " ", ed: "", py: -23.57, px: -46.66 },
+            { cp: 12, np: "Sem coordenada", py: 1000, px: -46.6 },
+          ]);
+    };
+    const r = await handleRequest(req("/api/stops?q=Paulista"), env, fetcher as typeof fetch);
+    expect(r.status).toBe(200);
+    const body = await r.json();
+    expect(body.data).toEqual([
+      { id: "10", name: "Paulista", address: "Av. Paulista, 1000", lat: -23.56, lon: -46.65 },
+      { id: "11", name: "Parada 11", lat: -23.57, lon: -46.66 },
+    ]);
+    expect(calls.some((c) => c.includes("/Parada/Buscar?termosBusca=Paulista"))).toBe(true);
+  });
+  it("rejeita busca de paradas vazia ou longa demais sem consultar fornecedor", async () => {
+    const f = vi.fn();
+    expect((await handleRequest(req("/api/stops?q="), env, f)).status).toBe(400);
+    expect((await handleRequest(req("/api/stops?q=" + "a".repeat(101)), env, f)).status).toBe(400);
+    expect(f).not.toHaveBeenCalled();
+  });
   it("transforma falha de rede em erro sem segredos", async () => {
     const f = async () => {
       throw Error("secret-fixture network");

@@ -150,3 +150,111 @@ it("remove previsões quando sua própria atualização falha", async () => {
     screen.getByText("Previsões indisponíveis nesta atualização."),
   ).toBeTruthy();
 });
+
+it("mostra paradas encontradas na busca e consulta chegadas de todas as linhas", async () => {
+  const arrivalUrls: string[] = [];
+  const result = (data: unknown) =>
+    Response.json({
+      data,
+      source: "SPTrans",
+      fetchedAt: new Date().toISOString(),
+      observedAt: new Date().toISOString(),
+    });
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: string) => {
+      if (input.includes("health")) return Response.json({ configured: true });
+      if (input.includes("/arrivals")) {
+        arrivalUrls.push(input);
+        return result([
+          {
+            lineId: "198",
+            stopId: "10",
+            lineCode: "675K-10",
+            vehicleId: "9",
+            expectedAt: null,
+            expectedLocalTime: "12:05",
+            kind: "realtime",
+            observedAt: new Date().toISOString(),
+          },
+        ]);
+      }
+      if (input.includes("/api/stops?q="))
+        return result([
+          {
+            id: "10",
+            name: "Parada Paulista",
+            address: "Av. Paulista, 1000",
+            lat: -23.56,
+            lon: -46.65,
+          },
+        ]);
+      return result([]);
+    }),
+  );
+  render(<App apiBase="https://api.test" />);
+  fireEvent.change(screen.getByLabelText("Linha ou destino"), {
+    target: { value: "Paulista" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Buscar ônibus" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: /Parada Paulista/ }),
+  );
+  await screen.findByText("12:05");
+  expect(arrivalUrls[0]).toContain("/api/stops/10/arrivals");
+  expect(arrivalUrls[0]).not.toContain("lineId");
+});
+
+it("lista paradas do GTFS perto de você e consulta chegadas de todas as linhas", async () => {
+  Object.defineProperty(navigator, "geolocation", {
+    configurable: true,
+    value: {
+      getCurrentPosition: (ok: (p: unknown) => void) =>
+        ok({ coords: { latitude: -23.5614, longitude: -46.6559 } }),
+    },
+  });
+  const arrivalUrls: string[] = [];
+  const result = (data: unknown) =>
+    Response.json({
+      data,
+      source: "SPTrans",
+      fetchedAt: new Date().toISOString(),
+      observedAt: new Date().toISOString(),
+    });
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: string) => {
+      if (input.includes("health")) return Response.json({ configured: true });
+      if (input.includes("data/stops.json"))
+        return Response.json({
+          stops: [
+            ["10", "Parada Perto", "Ref.: Praça", -23.5617, -46.6563, 0],
+            ["11", "Parada Longe", "", -23.7, -46.8, 0],
+          ],
+        });
+      if (input.includes("/arrivals")) {
+        arrivalUrls.push(input);
+        return result([
+          {
+            lineId: "198",
+            stopId: "10",
+            lineCode: "675K-10",
+            vehicleId: "9",
+            expectedAt: null,
+            expectedLocalTime: "12:05",
+            kind: "realtime",
+            observedAt: new Date().toISOString(),
+          },
+        ]);
+      }
+      return result([]);
+    }),
+  );
+  render(<App apiBase="https://api.test" />);
+  fireEvent.click(screen.getByRole("button", { name: "Minha localização" }));
+  fireEvent.click(await screen.findByRole("button", { name: /Parada Perto/ }));
+  await screen.findByText("12:05");
+  expect(screen.queryByText("Parada Longe")).toBeNull();
+  expect(arrivalUrls[0]).toContain("/api/stops/10/arrivals");
+  expect(arrivalUrls[0]).not.toContain("lineId");
+});

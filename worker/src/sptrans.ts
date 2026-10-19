@@ -158,6 +158,26 @@ export function createSptrans(token: string, fetcher: typeof fetch = fetch) {
           })),
       );
     },
+    async searchStops(q: string): Promise<Result<Stop[]>> {
+      const rows = array(
+        await query("/Parada/Buscar?termosBusca=" + encodeURIComponent(q)),
+      );
+      return wrap(
+        rows
+          .filter((r) => coord(r) && r.cp != null)
+          .slice(0, 50)
+          .map((r) => {
+            const address = String(r.ed || "").trim();
+            return {
+              id: String(r.cp),
+              name: String(r.np || "").trim() || `Parada ${r.cp}`,
+              ...(address ? { address } : {}),
+              lat: r.py,
+              lon: r.px,
+            };
+          }),
+      );
+    },
     async getVehicles(id: string): Promise<Result<Vehicle[]>> {
       const r = await query("/Posicao/Linha?codigoLinha=" + id);
       const data = array(r.vs)

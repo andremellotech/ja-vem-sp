@@ -9,6 +9,7 @@ export interface Line {
 export interface Stop {
   id: string;
   name: string;
+  address?: string;
   lat: number;
   lon: number;
 }

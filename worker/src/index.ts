@@ -62,7 +62,7 @@ export async function handleRequest(
     });
   const line = p.match(/^\/api\/lines\/([^/]+)\/(stops|vehicles)$/),
     stop = p.match(/^\/api\/stops\/([^/]+)\/arrivals$/);
-  if (p !== "/api/lines" && !line && !stop)
+  if (p !== "/api/lines" && p !== "/api/stops" && !line && !stop)
     return json(
       { error: { code: "NOT_FOUND", message: "Recurso não encontrado." } },
       404,
@@ -71,7 +71,7 @@ export async function handleRequest(
   const q = (url.searchParams.get("q") || "").trim(),
     filter = url.searchParams.get("lineId");
   if (
-    (p === "/api/lines" && (!q || q.length > 100)) ||
+    ((p === "/api/lines" || p === "/api/stops") && (!q || q.length > 100)) ||
     (line && !validId(line[1])) ||
     (stop && !validId(stop[1])) ||
     (filter !== null && !validId(filter))
@@ -113,6 +113,7 @@ export async function handleRequest(
     }
     const api = getClient(env.SPTRANS_TOKEN, fetcher);
     if (p === "/api/lines") return json(await api.searchLines(q));
+    if (p === "/api/stops") return json(await api.searchStops(q));
     if (line)
       return json(
         line[2] === "stops"
