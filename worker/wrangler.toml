@@ -1,0 +1,11 @@
+name = "ja-vem-sp-api"
+main = "src/index.ts"
+compatibility_date = "2026-10-19"
+
+[vars]
+ALLOWED_ORIGIN = "https://andremellotech.github.io"
+
+[[ratelimits]]
+name = "RATE_LIMITER"
+namespace_id = "1001"
+simple = { limit = 60, period = 60 }
