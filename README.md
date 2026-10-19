@@ -3,7 +3,7 @@
 Site de transporte de São Paulo com mapa, busca de linhas, consulta de paradas, posições de ônibus, previsões e favoritos locais. Código próprio; não é um produto oficial da SPTrans ou do Moovit.
 
 ## Estado real
-A interface e o adaptador Olho Vivo estão implementados e testados com fixtures. Sem token e API publicada, o site mostra configuração ausente; não serve ônibus ou horários fictícios. Ainda não foi validada a integração autenticada em produção. Planejamento completo de rotas, metrô, trens, login sincronizado, notificações e bilhetagem não estão implementados.
+Site publicado em https://andremellotech.github.io/ja-vem-sp/ e API em https://ja-vem-sp-api.andremello.workers.dev. A integração autenticada com a SPTrans foi validada em produção em 19/10/2026, incluindo busca de linhas, posições GPS, paradas e consulta de previsões (que pode retornar vazia). O token fica criptografado no Worker; o site não serve ônibus ou horários fictícios. Planejamento completo de rotas, metrô, trens, login sincronizado, notificações e bilhetagem não estão implementados.
 
 ## Desenvolvimento
 Requer Node.js 24 e pnpm 11.25.0; Python 3.11+ para o importador GTFS.

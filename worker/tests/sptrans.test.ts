@@ -11,6 +11,27 @@ const cookieHeaders = {
   "Set-Cookie": "session=fixture; Path=/; Secure; HttpOnly",
 };
 describe("API de transporte", () => {
+  it("consulta com política de redirecionamento compatível com Workers", async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.redirect === "error") throw new TypeError("Unsupported redirect mode");
+      return String(input).includes("Autenticar")
+        ? new Response("true", { headers: cookieHeaders })
+        : Response.json([]);
+    });
+    const response = await handleRequest(req("/api/lines?q=8000"), env, fetcher as typeof fetch);
+    expect(response.status).toBe(200);
+    expect(fetcher.mock.calls.every(([, init]) => init?.redirect === "manual")).toBe(true);
+  });
+  it("recusa redirecionamento sem enviar credenciais a outro destino", async () => {
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(null, {
+      status: 302,
+      headers: { Location: "https://other.example/" },
+    }));
+    await expect(createSptrans("secret", fetcher as typeof fetch).searchLines("8000"))
+      .rejects.toMatchObject({ code: "PROVIDER_UNAVAILABLE" });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher.mock.calls[0]?.[1]).toMatchObject({ redirect: "manual" });
+  });
   it("retorna configuração ausente sem expor segredo", async () => {
     const r = await handleRequest(req("/api/lines?q=Paulista"), {
       ALLOWED_ORIGIN: env.ALLOWED_ORIGIN,

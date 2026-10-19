@@ -1,6 +1,10 @@
 name = "ja-vem-sp-api"
 main = "src/index.ts"
 compatibility_date = "2026-10-19"
+preview_urls = false
+
+[observability]
+enabled = true
 
 [vars]
 ALLOWED_ORIGIN = "https://andremellotech.github.io"

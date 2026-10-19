@@ -39,7 +39,7 @@ export function createSptrans(token: string, fetcher: typeof fetch = fetch) {
       return await fetcher(BASE + path, {
         ...init,
         signal: AbortSignal.timeout(12000),
-        redirect: "error",
+        redirect: "manual",
       });
     } catch {
       throw new ApiError(
