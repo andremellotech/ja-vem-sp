@@ -159,6 +159,14 @@ describe("API de transporte", () => {
     expect(r.data.map((v) => v.id)).toEqual(["2"]);
     expect(r.observedAt).toBe("2026-10-19T10:00:00.000Z");
   });
+  it("identifica pelo código a parada cujo nome veio vazio", async () => {
+    const fetcher = async (input: RequestInfo | URL) =>
+      String(input).includes("Autenticar")
+        ? new Response("true", { headers: cookieHeaders })
+        : Response.json([{ cp: 1234, np: "  ", py: -23.5, px: -46.6 }]);
+    const result = await createSptrans("secret", fetcher as typeof fetch).getStops("1");
+    expect(result.data[0]).toMatchObject({ id: "1234", name: "Parada 1234" });
+  });
   it("transforma falha de rede em erro sem segredos", async () => {
     const f = async () => {
       throw Error("secret-fixture network");

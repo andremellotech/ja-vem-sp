@@ -152,7 +152,7 @@ export function createSptrans(token: string, fetcher: typeof fetch = fetch) {
           .filter((r) => coord(r) && r.cp != null)
           .map((r) => ({
             id: String(r.cp),
-            name: String(r.np || ""),
+            name: String(r.np || "").trim() || `Parada ${r.cp}`,
             lat: r.py,
             lon: r.px,
           })),
