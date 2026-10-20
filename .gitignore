@@ -16,3 +16,4 @@ worker-build/
 .pnpm-store/
 
 qa/
+/data/

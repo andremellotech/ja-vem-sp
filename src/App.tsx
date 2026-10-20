@@ -37,6 +37,9 @@ import {
 } from "./contracts";
 import TransitMap from "./features/map/TransitMap";
 import StopPicker from "./features/stops/StopPicker";
+import JourneyPlanner from "./features/journey/JourneyPlanner";
+import type { JourneyMapSelection, Point } from "./features/journey/types";
+import { loadStopsForLine } from "./features/journey/line-stops";
 import {
   distanceM,
   loadNetwork,
@@ -109,7 +112,14 @@ export default function App({
     }
   });
   const [view, setView] = useState<"list" | "map">("list");
+  const [mode, setMode] = useState<"journey" | "lines">("journey");
+  const [journeySelection, setJourneySelection] =
+    useState<JourneyMapSelection | null>(null);
   const [lineLoading, setLineLoading] = useState(false);
+  const [stopStatus, setStopStatus] = useState<"loading" | "ready" | "error">(
+    "loading",
+  );
+  const [lineStopNote, setLineStopNote] = useState("");
   const [switching, setSwitching] = useState(false);
   const [manualRefreshing, setManualRefreshing] = useState(false);
   const lineRefresh = useRef<(() => Promise<void>) | null>(null);
@@ -182,6 +192,18 @@ export default function App({
     setError("");
     setTab(next);
     setView("list");
+    setJourneySelection(null);
+  }
+  function changeMode(next: "journey" | "lines") {
+    showTab("search");
+    setMode(next);
+  }
+  function showJourneyArrivals(selected: Stop, selection = journeySelection) {
+    showTab("search");
+    setMode("lines");
+    setFoundStops([selected]);
+    setStop(selected.id);
+    setJourneySelection(selection);
   }
   const search = async (value = query) => {
     const q = value.trim();
@@ -200,6 +222,7 @@ export default function App({
     setLine(null);
     setStops([]);
     setFoundStops([]);
+    setJourneySelection(null);
     setVehicles([]);
     setStop(null);
     setLines([]);
@@ -239,7 +262,13 @@ export default function App({
     const c = new AbortController();
     let active = true;
     const id = line.id;
+    const selectedLine = line;
+    const staticBase = new URL(import.meta.env.BASE_URL, window.location.href)
+      .href;
     setStops([]);
+    setStopStatus("loading");
+    setLineStopNote("");
+    setJourneySelection(null);
     setVehicles([]);
     setStop(null);
     setArrivals([]);
@@ -253,10 +282,10 @@ export default function App({
       running = true;
       if (active) setLineLoading(true);
       try {
-        const [s, v] = await Promise.all([
+        const [s, v] = await Promise.allSettled([
           stopsLoaded
             ? null
-            : request<Stop[]>(apiBase, "/api/lines/" + id + "/stops", c.signal),
+            : loadStopsForLine(selectedLine, staticBase, apiBase, c.signal),
           request<Vehicle[]>(
             apiBase,
             "/api/lines/" + id + "/vehicles",
@@ -264,15 +293,32 @@ export default function App({
           ),
         ]);
         if (active) {
-          if (s) {
-            setStops(s.data);
-            stopsLoaded = true;
+          const issues: string[] = [];
+          if (s.status === "fulfilled" && s.value) {
+            setStops(s.value.stops);
+            setStopStatus("ready");
+            setLineStopNote(s.value.note);
+            stopsLoaded = s.value.source === "gtfs";
+          } else if (s.status === "rejected") {
+            setStopStatus("error");
+            issues.push(
+              s.reason instanceof Error
+                ? s.reason.message
+                : "As paradas estão indisponíveis.",
+            );
           }
-          setVehicles(v.data);
-          setUpdated(v.fetchedAt);
-          setObserved(v.observedAt);
-          setOnline(true);
-          setError("");
+          if (v.status === "fulfilled") {
+            setVehicles(v.value.data);
+            setUpdated(v.value.fetchedAt);
+            setObserved(v.value.observedAt);
+            setOnline(true);
+          } else
+            issues.push(
+              v.reason instanceof Error
+                ? v.reason.message
+                : "Não foi possível atualizar os veículos.",
+            );
+          setError(issues.join(" "));
         }
       } catch (e) {
         if (active && !c.signal.aborted)
@@ -434,27 +480,33 @@ export default function App({
       setNotice("Favoritos disponíveis apenas nesta sessão.");
     }
   }
-  function locate() {
+  async function locate(): Promise<Point | null> {
     if (!navigator.geolocation) {
       setNotice(
         "Localização indisponível neste navegador. Você pode buscar uma linha manualmente.",
       );
-      return;
+      return null;
     }
-    navigator.geolocation.getCurrentPosition(
-      (p) => {
-        setLocation([p.coords.latitude, p.coords.longitude]);
-        setNotice(
-          "Sua posição aparece em azul no mapa. Veja as paradas por perto ou busque uma linha ou parada.",
-        );
-      },
-      () =>
-        setNotice(
-          "Não foi possível acessar sua localização. Você pode buscar uma linha manualmente.",
-        ),
-      { timeout: 10000, maximumAge: 60000 },
+    return new Promise((resolve) =>
+      navigator.geolocation.getCurrentPosition(
+        (p) => {
+          setLocation([p.coords.latitude, p.coords.longitude]);
+          setNotice(
+            "Sua posição aparece em azul no mapa. Veja as paradas por perto ou busque uma linha ou parada.",
+          );
+          resolve({ lat: p.coords.latitude, lon: p.coords.longitude });
+        },
+        () => {
+          setNotice(
+            "Não foi possível acessar sua localização. Você pode buscar uma linha manualmente.",
+          );
+          resolve(null);
+        },
+        { timeout: 10000, maximumAge: 60000 },
+      ),
     );
   }
+  const isJourney = mode === "journey" && tab === "search";
   const visibleLines =
     tab === "favorites"
       ? savedLines.filter((l) => favorites.includes(l.id))
@@ -522,6 +574,7 @@ export default function App({
           onClick={(e) => {
             e.preventDefault();
             showTab("search");
+            setMode("journey");
           }}
           aria-label="Já Vem SP início"
         >
@@ -536,7 +589,7 @@ export default function App({
         <nav aria-label="Principal">
           <button
             className={tab === "search" ? "nav-active" : ""}
-            onClick={() => showTab("search")}
+            onClick={() => changeMode("journey")}
             aria-pressed={tab === "search"}
           >
             <Navigation size={16} /> Explorar
@@ -565,7 +618,7 @@ export default function App({
         <button
           onClick={() => setView("list")}
           aria-pressed={view === "list"}
-          aria-controls="line-panel"
+          aria-controls={isJourney ? "journey-panel" : "line-panel"}
         >
           <List size={18} /> Lista
         </button>
@@ -579,7 +632,14 @@ export default function App({
       </div>
       <main
         className={
-          "app-layout " + (line ? "has-line" : searched ? "has-results" : "")
+          "app-layout " +
+          (isJourney
+            ? "journey-layout"
+            : line
+              ? "has-line"
+              : searched
+                ? "has-results"
+                : "")
         }
         data-view={view}
       >
@@ -588,336 +648,374 @@ export default function App({
             <span /> SEU DIA, EM MOVIMENTO
           </div>
           <h1>
-            Seu próximo ônibus.
+            {isJourney ? "De onde você sai." : "Seu próximo ônibus."}
             <br />
-            <em>Sem adivinhação.</em>
+            <em>{isJourney ? "Aonde quer chegar." : "Sem adivinhação."}</em>
           </h1>
           <p className="intro">
-            Encontre sua linha e acompanhe a chegada.
+            {isJourney
+              ? "Dois endereços. Opções de ônibus para seu caminho."
+              : "Encontre sua linha e acompanhe a chegada."}
             <br />
             São Paulo fica mais perto quando você sabe.
           </p>
-          <form
-            className="search-box"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void search();
-            }}
+          <div
+            className="journey-mode-switch"
+            role="group"
+            aria-label="Tipo de busca"
           >
-            <label htmlFor="line-search">PARA ONDE VOCÊ VAI?</label>
-            <div className="search-input">
-              <Search size={20} />
-              <input
-                id="line-search"
-                aria-label="Linha ou destino"
-                placeholder="Linha, parada ou endereço"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-              <button type="submit" aria-label="Buscar ônibus">
-                <ArrowRight size={21} />
-              </button>
+            <button
+              type="button"
+              aria-pressed={isJourney}
+              onClick={() => changeMode("journey")}
+            >
+              Trajeto
+            </button>
+            <button
+              type="button"
+              aria-pressed={!isJourney}
+              onClick={() => changeMode("lines")}
+            >
+              Linhas e paradas
+            </button>
+          </div>
+          <div className="journey-pane" id="journey-panel" hidden={!isJourney}>
+            <JourneyPlanner
+              active={isJourney}
+              onMapSelection={setJourneySelection}
+              onShowArrivals={showJourneyArrivals}
+              onLocate={locate}
+              onShowMap={() => setView("map")}
+            />
+          </div>
+          <div className="lines-pane" hidden={isJourney}>
+            <form
+              className="search-box"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void search();
+              }}
+            >
+              <label htmlFor="line-search">PARA ONDE VOCÊ VAI?</label>
+              <div className="search-input">
+                <Search size={20} />
+                <input
+                  id="line-search"
+                  aria-label="Linha ou destino"
+                  placeholder="Linha, parada ou endereço"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+                <button type="submit" aria-label="Buscar ônibus">
+                  <ArrowRight size={21} />
+                </button>
+              </div>
+            </form>
+            <div className="quick-search">
+              <span>Experimente</span>
+              {["Paulista", "Pinheiros", "Lapa"].map((q) => (
+                <button key={q} onClick={() => void search(q)}>
+                  {q}
+                  <ArrowUpRight size={12} />
+                </button>
+              ))}
             </div>
-          </form>
-          <div className="quick-search">
-            <span>Experimente</span>
-            {["Paulista", "Pinheiros", "Lapa"].map((q) => (
-              <button key={q} onClick={() => void search(q)}>
-                {q}
-                <ArrowUpRight size={12} />
-              </button>
-            ))}
-          </div>
-          <div className="section-title">
-            <h2>
-              {line
-                ? "Sua linha"
-                : tab === "favorites"
-                  ? "Suas linhas favoritas"
-                  : "Encontre seu caminho"}
-            </h2>
-            {line && (
-              <button className="text-btn" onClick={() => showTab(tab)}>
-                Voltar
-              </button>
-            )}
-          </div>
-          <div className="panel-content" id="line-panel" aria-live="polite">
-            {busy && (
-              <div className="loading">
-                <span className="spinner" />
-                Buscando linhas na SPTrans…
-              </div>
-            )}
-            {error && (
-              <div className="message error">
-                <Info size={18} />
-                <div>
-                  <strong>Não foi possível consultar</strong>
-                  <p>{error}</p>
+            <div className="section-title">
+              <h2>
+                {line
+                  ? "Sua linha"
+                  : tab === "favorites"
+                    ? "Suas linhas favoritas"
+                    : "Encontre seu caminho"}
+              </h2>
+              {line && (
+                <button className="text-btn" onClick={() => showTab(tab)}>
+                  Voltar
+                </button>
+              )}
+            </div>
+            <div className="panel-content" id="line-panel" aria-live="polite">
+              {busy && (
+                <div className="loading">
+                  <span className="spinner" />
+                  Buscando linhas na SPTrans…
                 </div>
-              </div>
-            )}
-            {line ? (
-              <>
-                <div className="selected-line">
-                  <div className="line-badge">
-                    <BusFront size={17} />
-                    {line.code}
-                  </div>
-                  <button
-                    className={
-                      "icon-btn " +
-                      (favorites.includes(line.id) ? "is-favorite" : "")
-                    }
-                    aria-label={
-                      favorites.includes(line.id)
-                        ? "Remover linha dos favoritos"
-                        : "Favoritar linha"
-                    }
-                    aria-pressed={favorites.includes(line.id)}
-                    onClick={() => favorite(line.id)}
-                  >
-                    <Heart
-                      size={19}
-                      fill={
-                        favorites.includes(line.id) ? "currentColor" : "none"
-                      }
-                    />
-                  </button>
-                  <h3>{line.destination}</h3>
-                  <p>
-                    De {line.origin} · sentido {line.direction}
-                  </p>
-                  <div className="line-metrics">
-                    <span>
-                      <Radio size={14} />
-                      {updated
-                        ? `${vehicles.length} veículos informados`
-                        : error
-                          ? "Frota indisponível"
-                          : "Consultando frota…"}
-                    </span>
-                    <span>
-                      <MapPin size={14} />
-                      {updated
-                        ? `${stops.length} paradas`
-                        : error
-                          ? "Paradas indisponíveis"
-                          : "Consultando paradas…"}
-                    </span>
+              )}
+              {error && (
+                <div className="message error">
+                  <Info size={18} />
+                  <div>
+                    <strong>Não foi possível consultar</strong>
+                    <p>{error}</p>
                   </div>
                 </div>
-                <div className="line-actions">
-                  <button
-                    onClick={() => void switchDirection()}
-                    disabled={switching}
-                  >
-                    <ArrowLeftRight size={16} />{" "}
-                    {switching ? "Consultando sentido…" : "Trocar sentido"}
-                  </button>
-                  <button
-                    onClick={() => void refreshNow()}
-                    disabled={manualRefreshing || lineLoading || arrivalLoading}
-                  >
-                    <RefreshCw
-                      size={16}
-                      className={manualRefreshing ? "refresh-spin" : ""}
-                    />
-                    {manualRefreshing ? "Atualizando…" : "Atualizar agora"}
-                  </button>
-                </div>
-                {updated && (
-                  <p className="data-time">
-                    Consulta {time(updated)} · GPS {time(observed)}{" "}
-                    {stale ? "· posições antigas" : ""}
-                  </p>
-                )}
-                {arrivalCard}
-                {!!stops.length && (
-                  <StopPicker
-                    key={line.id}
-                    stops={stops}
-                    selectedId={stop}
-                    onSelect={selectStop}
-                    location={location}
-                    onLocate={locate}
-                  />
-                )}
-
-                {!stops.length && !error && (
-                  <p className="muted">
-                    {lineLoading
-                      ? "Consultando paradas na SPTrans…"
-                      : "A SPTrans não informou paradas para esta linha nesta consulta."}
-                  </p>
-                )}
-              </>
-            ) : (
-              <>
-                {tab === "search" && arrivalCard}
-                {tab === "search" && nearby.length > 0 && (
-                  <>
-                    <div className="guide-label">PARADAS PERTO DE VOCÊ</div>
-                    <div className="stop-list">
-                      {nearby.map((s) => (
-                        <button
-                          className={stop === s.id ? "stop selected" : "stop"}
-                          key={s.id}
-                          onClick={() => selectStop(s.id)}
-                        >
-                          <span className="stop-number">
-                            <MapPin size={12} />
-                          </span>
-                          <span>
-                            {s.name}
-                            <small style={{ display: "block" }}>
-                              {Math.round(
-                                distanceM(
-                                  location![0],
-                                  location![1],
-                                  s.lat,
-                                  s.lon,
-                                ),
-                              )}{" "}
-                              m{s.ref ? " · " + s.ref : ""}
-                            </small>
-                          </span>
-                          <ChevronRight size={16} />
-                        </button>
-                      ))}
+              )}
+              {line ? (
+                <>
+                  <div className="selected-line">
+                    <div className="line-badge">
+                      <BusFront size={17} />
+                      {line.code}
                     </div>
-                  </>
-                )}
-                {visibleLines.map((l) => (
-                  <div className="line-result" key={l.id}>
-                    <button
-                      className="line-result-main"
-                      onClick={() => setLine(l)}
-                    >
-                      <span className="line-code">
-                        <BusFront size={15} />
-                        {l.code}
-                      </span>
-                      <strong>{l.destination}</strong>
-                      <small>
-                        {l.origin} · sentido {l.direction}
-                      </small>
-                      <ChevronRight size={19} />
-                    </button>
                     <button
                       className={
-                        "favorite-btn " +
-                        (favorites.includes(l.id) ? "is-favorite" : "")
+                        "icon-btn " +
+                        (favorites.includes(line.id) ? "is-favorite" : "")
                       }
-                      onClick={() => favorite(l.id)}
                       aria-label={
-                        (favorites.includes(l.id)
-                          ? "Remover favorito "
-                          : "Favoritar ") + l.code
+                        favorites.includes(line.id)
+                          ? "Remover linha dos favoritos"
+                          : "Favoritar linha"
                       }
-                      aria-pressed={favorites.includes(l.id)}
+                      aria-pressed={favorites.includes(line.id)}
+                      onClick={() => favorite(line.id)}
                     >
                       <Heart
-                        size={17}
+                        size={19}
                         fill={
-                          favorites.includes(l.id) ? "currentColor" : "none"
+                          favorites.includes(line.id) ? "currentColor" : "none"
                         }
                       />
                     </button>
-                  </div>
-                ))}
-                {tab === "search" && foundStops.length > 0 && (
-                  <>
-                    <div className="guide-label">PARADAS ENCONTRADAS</div>
-                    <div className="stop-list">
-                      {foundStops.map((s) => (
-                        <button
-                          className={stop === s.id ? "stop selected" : "stop"}
-                          key={s.id}
-                          onClick={() => setStop(s.id)}
-                        >
-                          <span className="stop-number">
-                            <MapPin size={12} />
-                          </span>
-                          <span>
-                            {s.name}
-                            {s.address && (
-                              <small style={{ display: "block" }}>
-                                {s.address}
-                              </small>
-                            )}
-                          </span>
-                          <ChevronRight size={16} />
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-                {!busy &&
-                  !stopsBusy &&
-                  !error &&
-                  searched &&
-                  tab === "search" &&
-                  !lines.length &&
-                  !foundStops.length && (
-                    <div className="empty-state">
-                      <Search />
-                      <h3>Nenhuma linha ou parada encontrada</h3>
-                      <p>Tente outro número, nome de parada ou endereço.</p>
-                    </div>
-                  )}
-                {tab === "favorites" && !visibleLines.length && (
-                  <div className="empty-state">
-                    <Heart />
-                    <h3>Seu caminho, sempre à mão</h3>
+                    <h3>{line.destination}</h3>
                     <p>
-                      {favorites.length
-                        ? "Busque novamente suas linhas para atualizar os favoritos salvos anteriormente."
-                        : "Toque no coração de uma linha para guardá-la neste navegador."}
+                      De {line.origin} · sentido {line.direction}
                     </p>
-                  </div>
-                )}
-                {!searched && tab === "search" && (
-                  <>
-                    <button className="discovery-card" onClick={locate}>
-                      <span className="discovery-icon">
-                        <LocateFixed size={23} />
+                    <div className="line-metrics">
+                      <span>
+                        <Radio size={14} />
+                        {updated
+                          ? `${vehicles.length} veículos informados`
+                          : error
+                            ? "Frota indisponível"
+                            : "Consultando frota…"}
                       </span>
                       <span>
-                        <strong>Comece por onde você está</strong>
-                        <small>Localize-se no mapa e busque sua linha</small>
+                        <MapPin size={14} />
+                        {stopStatus === "ready"
+                          ? `${stops.length} paradas`
+                          : stopStatus === "error"
+                            ? "Paradas indisponíveis"
+                            : "Consultando paradas…"}
                       </span>
-                      <ArrowUpRight size={19} />
-                    </button>
-                    <div className="guide-label">É SIMPLES CHEGAR LÁ</div>
-                    <div className="steps">
-                      <div>
-                        <span>01</span>
-                        <p>
-                          <strong>Encontre sua linha</strong>
-                          <small>Busque pelo número ou destino.</small>
-                        </p>
-                      </div>
-                      <div>
-                        <span>02</span>
-                        <p>
-                          <strong>Escolha sua parada</strong>
-                          <small>Veja os pontos e os veículos no mapa.</small>
-                        </p>
-                      </div>
-                      <div>
-                        <span>03</span>
-                        <p>
-                          <strong>Acompanhe a chegada</strong>
-                          <small>Consulte as previsões disponíveis.</small>
-                        </p>
-                      </div>
                     </div>
-                  </>
-                )}
-              </>
-            )}
+                  </div>
+                  <div className="line-actions">
+                    <button
+                      onClick={() => void switchDirection()}
+                      disabled={switching}
+                    >
+                      <ArrowLeftRight size={16} />{" "}
+                      {switching ? "Consultando sentido…" : "Trocar sentido"}
+                    </button>
+                    <button
+                      onClick={() => void refreshNow()}
+                      disabled={
+                        manualRefreshing || lineLoading || arrivalLoading
+                      }
+                    >
+                      <RefreshCw
+                        size={16}
+                        className={manualRefreshing ? "refresh-spin" : ""}
+                      />
+                      {manualRefreshing ? "Atualizando…" : "Atualizar agora"}
+                    </button>
+                  </div>
+                  {updated && (
+                    <p className="data-time">
+                      Consulta {time(updated)} · GPS {time(observed)}{" "}
+                      {stale ? "· posições antigas" : ""}
+                    </p>
+                  )}
+                  {arrivalCard}
+                  {lineStopNote && (
+                    <p className="line-stop-note">{lineStopNote}</p>
+                  )}
+                  {!!stops.length && (
+                    <StopPicker
+                      key={line.id}
+                      stops={stops}
+                      selectedId={stop}
+                      onSelect={selectStop}
+                      location={location}
+                      onLocate={locate}
+                    />
+                  )}
+
+                  {!stops.length && !error && (
+                    <p className="muted">
+                      {lineLoading
+                        ? "Consultando paradas na SPTrans…"
+                        : "A SPTrans não informou paradas para esta linha nesta consulta."}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  {tab === "search" && arrivalCard}
+                  {tab === "search" && nearby.length > 0 && (
+                    <>
+                      <div className="guide-label">PARADAS PERTO DE VOCÊ</div>
+                      <div className="stop-list">
+                        {nearby.map((s) => (
+                          <button
+                            className={stop === s.id ? "stop selected" : "stop"}
+                            key={s.id}
+                            onClick={() => selectStop(s.id)}
+                          >
+                            <span className="stop-number">
+                              <MapPin size={12} />
+                            </span>
+                            <span>
+                              {s.name}
+                              <small style={{ display: "block" }}>
+                                {Math.round(
+                                  distanceM(
+                                    location![0],
+                                    location![1],
+                                    s.lat,
+                                    s.lon,
+                                  ),
+                                )}{" "}
+                                m{s.ref ? " · " + s.ref : ""}
+                              </small>
+                            </span>
+                            <ChevronRight size={16} />
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  {visibleLines.map((l) => (
+                    <div className="line-result" key={l.id}>
+                      <button
+                        className="line-result-main"
+                        onClick={() => setLine(l)}
+                      >
+                        <span className="line-code">
+                          <BusFront size={15} />
+                          {l.code}
+                        </span>
+                        <strong>{l.destination}</strong>
+                        <small>
+                          {l.origin} · sentido {l.direction}
+                        </small>
+                        <ChevronRight size={19} />
+                      </button>
+                      <button
+                        className={
+                          "favorite-btn " +
+                          (favorites.includes(l.id) ? "is-favorite" : "")
+                        }
+                        onClick={() => favorite(l.id)}
+                        aria-label={
+                          (favorites.includes(l.id)
+                            ? "Remover favorito "
+                            : "Favoritar ") + l.code
+                        }
+                        aria-pressed={favorites.includes(l.id)}
+                      >
+                        <Heart
+                          size={17}
+                          fill={
+                            favorites.includes(l.id) ? "currentColor" : "none"
+                          }
+                        />
+                      </button>
+                    </div>
+                  ))}
+                  {tab === "search" && foundStops.length > 0 && (
+                    <>
+                      <div className="guide-label">PARADAS ENCONTRADAS</div>
+                      <div className="stop-list">
+                        {foundStops.map((s) => (
+                          <button
+                            className={stop === s.id ? "stop selected" : "stop"}
+                            key={s.id}
+                            onClick={() => setStop(s.id)}
+                          >
+                            <span className="stop-number">
+                              <MapPin size={12} />
+                            </span>
+                            <span>
+                              {s.name}
+                              {s.address && (
+                                <small style={{ display: "block" }}>
+                                  {s.address}
+                                </small>
+                              )}
+                            </span>
+                            <ChevronRight size={16} />
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  {!busy &&
+                    !stopsBusy &&
+                    !error &&
+                    searched &&
+                    tab === "search" &&
+                    !lines.length &&
+                    !foundStops.length && (
+                      <div className="empty-state">
+                        <Search />
+                        <h3>Nenhuma linha ou parada encontrada</h3>
+                        <p>Tente outro número, nome de parada ou endereço.</p>
+                      </div>
+                    )}
+                  {tab === "favorites" && !visibleLines.length && (
+                    <div className="empty-state">
+                      <Heart />
+                      <h3>Seu caminho, sempre à mão</h3>
+                      <p>
+                        {favorites.length
+                          ? "Busque novamente suas linhas para atualizar os favoritos salvos anteriormente."
+                          : "Toque no coração de uma linha para guardá-la neste navegador."}
+                      </p>
+                    </div>
+                  )}
+                  {!searched && tab === "search" && (
+                    <>
+                      <button className="discovery-card" onClick={locate}>
+                        <span className="discovery-icon">
+                          <LocateFixed size={23} />
+                        </span>
+                        <span>
+                          <strong>Comece por onde você está</strong>
+                          <small>Localize-se no mapa e busque sua linha</small>
+                        </span>
+                        <ArrowUpRight size={19} />
+                      </button>
+                      <div className="guide-label">É SIMPLES CHEGAR LÁ</div>
+                      <div className="steps">
+                        <div>
+                          <span>01</span>
+                          <p>
+                            <strong>Encontre sua linha</strong>
+                            <small>Busque pelo número ou destino.</small>
+                          </p>
+                        </div>
+                        <div>
+                          <span>02</span>
+                          <p>
+                            <strong>Escolha sua parada</strong>
+                            <small>Veja os pontos e os veículos no mapa.</small>
+                          </p>
+                        </div>
+                        <div>
+                          <span>03</span>
+                          <p>
+                            <strong>Acompanhe a chegada</strong>
+                            <small>Consulte as previsões disponíveis.</small>
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
           </div>
           <div className="sidebar-bottom">
             <ShieldCheck size={17} />
@@ -934,12 +1032,20 @@ export default function App({
           aria-label="Explorar mapa"
         >
           <TransitMap
-            network={network}
-            stops={mapStops}
+            network={line || journeySelection ? null : network}
+            stops={journeySelection ? [] : mapStops}
             vehicles={vehicles}
             selectedStop={stop}
-            onSelectStop={selectStop}
+            onSelectStop={(id) => {
+              const selected = journeySelection?.stops.find((s) => s.id === id);
+              if (selected) showJourneyArrivals(selected);
+              else {
+                setMode("lines");
+                selectStop(id);
+              }
+            }}
             location={location}
+            journey={journeySelection}
           />
           <div className="map-top">
             <div className="map-title">
@@ -980,7 +1086,15 @@ export default function App({
               <Settings2 size={20} />
             </button>
           </div>
-          {!line && (
+          {(line || journeySelection) && (
+            <div className="map-route-count" role="status">
+              {line
+                ? `${stops.length} paradas desta linha`
+                : `${journeySelection!.stops.length} paradas das linhas usadas`}{" "}
+              · outros pontos ocultos
+            </div>
+          )}
+          {!line && !journeySelection && (
             <div className="map-callout">
               <span className="callout-icon">
                 <BusFront size={27} />
@@ -992,7 +1106,11 @@ export default function App({
                   <br />
                   Você não precisa esperar no escuro.
                 </h2>
-                <p>Busque uma linha ou parada para descobrir seu caminho.</p>
+                <p>
+                  {isJourney
+                    ? "Informe de onde você sai e aonde quer chegar."
+                    : "Busque uma linha ou parada para descobrir seu caminho."}
+                </p>
               </div>
               <ArrowUpRight className="callout-arrow" size={24} />
             </div>

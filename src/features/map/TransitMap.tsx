@@ -3,6 +3,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Stop, Vehicle } from "../../contracts";
 import type { NetStopIndex } from "../stops/network";
+import type { JourneyMapSelection } from "../journey/types";
 const MIN_ZOOM = 15,
   MAX_DRAWN = 700;
 interface Props {
@@ -12,6 +13,7 @@ interface Props {
   onSelectStop: (id: string) => void;
   location: [number, number] | null;
   network?: NetStopIndex | null;
+  journey?: JourneyMapSelection | null;
 }
 export default function TransitMap({
   stops,
@@ -20,11 +22,14 @@ export default function TransitMap({
   onSelectStop,
   location,
   network = null,
+  journey = null,
 }: Props) {
   const host = useRef<HTMLDivElement>(null),
     map = useRef<L.Map | null>(null),
     layers = useRef<L.LayerGroup | null>(null),
     netLayer = useRef<L.LayerGroup | null>(null);
+  const journeyLayer = useRef<L.LayerGroup | null>(null),
+    lastJourney = useRef<JourneyMapSelection | null>(null);
   const [view, setView] = useState(0),
     [hint, setHint] = useState<"zoom" | "dense" | null>(null);
   const fitted = useRef("");
@@ -57,6 +62,7 @@ export default function TransitMap({
     }).addTo(m);
     L.control.zoom({ position: "bottomright" }).addTo(m);
     netLayer.current = L.layerGroup().addTo(m);
+    journeyLayer.current = L.layerGroup().addTo(m);
     layers.current = L.layerGroup().addTo(m);
     map.current = m;
     m.on("moveend", () => setView((v) => v + 1));
@@ -109,18 +115,59 @@ export default function TransitMap({
         fillColor: "#3478d7",
         fillOpacity: 1,
       }).addTo(group);
-    const key = stops.map((s) => s.id).join(",");
-    if (key && key !== fitted.current) {
-      const points = stops.map((s) => [s.lat, s.lon] as L.LatLngTuple);
+    const framing = journey
+      ? [journey.origin, journey.destination, ...journey.stops]
+      : stops;
+    const key = journey
+      ? "journey:" + journey.stops.map((s) => s.id).join(",")
+      : stops.map((s) => s.id).join(",");
+    if (key && (key !== fitted.current || lastJourney.current !== journey)) {
+      const points = framing.map((s) => [s.lat, s.lon] as L.LatLngTuple);
       pendingFocus.current = null;
       pendingBounds.current = L.latLngBounds(points);
       fitted.current = key;
       fitWhenVisible(m);
-    } else if (!key) {
+    } else if (!key && fitted.current) {
       fitted.current = "";
       pendingBounds.current = null;
     }
-  }, [stops, vehicles, selectedStop, onSelectStop, location]);
+    lastJourney.current = journey;
+  }, [stops, vehicles, selectedStop, onSelectStop, location, journey]);
+  useEffect(() => {
+    const group = journeyLayer.current;
+    if (!group) return;
+    group.clearLayers();
+    if (!journey) return;
+    const mark = (
+      point: { lat: number; lon: number },
+      label: string,
+      color: string,
+      radius: number,
+      onClick?: () => void,
+    ) => {
+      const marker = L.circleMarker([point.lat, point.lon], {
+        radius,
+        color: "#fff",
+        weight: 2,
+        fillColor: color,
+        fillOpacity: 1,
+      }).addTo(group);
+      const node = document.createElement("span");
+      node.textContent = label;
+      marker.bindTooltip(node);
+      if (onClick) marker.on("click", onClick);
+    };
+    for (const s of journey.stops)
+      mark(
+        s,
+        s.name,
+        selectedStop === s.id ? "#df7137" : "#285f50",
+        selectedStop === s.id ? 9 : 5,
+        () => onSelectStop(s.id),
+      );
+    mark(journey.origin, "Origem do trajeto", "#3478d7", 9);
+    mark(journey.destination, "Destino do trajeto", "#df7137", 9);
+  }, [journey, selectedStop, onSelectStop]);
   useEffect(() => {
     const g = netLayer.current,
       m = map.current;

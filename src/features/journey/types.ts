@@ -1,0 +1,91 @@
+import type { Stop } from "../../contracts";
+export type Point = { lat: number; lon: number };
+export type Place = Point & {
+  id: string;
+  label: string;
+  approximate: boolean;
+  source: "photon" | "device";
+};
+export type Route = { id: string; code: string; name: string };
+export type Trip = {
+  id: string;
+  routeId: string;
+  headsign: string;
+  direction: string | null;
+  serviceId: string;
+  stopIds: string[];
+};
+export type Calendar = {
+  id: string;
+  start: string;
+  end: string;
+  weekdays: boolean[];
+};
+export type ServiceException = {
+  serviceId: string;
+  date: string;
+  added: boolean;
+};
+export type Provenance = {
+  source: string;
+  retrievedAt: string;
+  license: string;
+  sha256: string;
+};
+export type PlannerData = {
+  version: 1;
+  provenance: Provenance;
+  validFrom: string;
+  validTo: string;
+  routes: Route[];
+  trips: Trip[];
+  calendars: Calendar[];
+  exceptions: ServiceException[];
+};
+export type PlanInput = {
+  origin: Point;
+  destination: Point;
+  serviceDate: string;
+  radiusM: 800 | 1200;
+};
+export type JourneyLeg = {
+  tripId: string;
+  routeId: string;
+  lineCode: string;
+  headsign: string;
+  from: Stop;
+  to: Stop;
+  fromIndex: number;
+  toIndex: number;
+  stopCount: number;
+  routeStops: Stop[];
+};
+export type JourneyOption = {
+  id: string;
+  legs: JourneyLeg[];
+  accessM: number;
+  egressM: number;
+  transferCount: 0 | 1;
+  stopCount: number;
+};
+export type PlannerResult = {
+  options: JourneyOption[];
+  radiusM: 800 | 1200;
+  reason?: "NO_NEARBY_STOPS" | "NO_CONNECTION";
+};
+export type JourneyMapSelection = {
+  origin: Point;
+  destination: Point;
+  stops: Stop[];
+};
+export type PlannerErrorCode =
+  "INVALID_DATA" | "EXPIRED_DATA" | "DATA_UNAVAILABLE" | "TIMEOUT";
+export class PlannerError extends Error {
+  constructor(
+    public code: PlannerErrorCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = "PlannerError";
+  }
+}

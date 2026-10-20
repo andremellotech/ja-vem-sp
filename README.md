@@ -1,9 +1,19 @@
 # Já Vem SP
 
-Site de transporte de São Paulo com mapa, busca de linhas, consulta de paradas, posições de ônibus, previsões e favoritos locais. Código próprio; não é um produto oficial da SPTrans ou do Moovit.
+Site de transporte de São Paulo com origem e destino por endereço, opções de ônibus diretas ou com uma troca, mapa, busca de linhas, paradas, posições de ônibus, previsões e favoritos locais. Código próprio; não é um produto oficial da SPTrans ou do Moovit.
 
 ## Estado real
-Site publicado em https://andremellotech.github.io/ja-vem-sp/ e API em https://ja-vem-sp-api.andremello.workers.dev. A integração autenticada com a SPTrans foi validada em produção em 19/10/2026, incluindo busca de linhas, posições GPS, paradas e consulta de previsões (que pode retornar vazia). O token fica criptografado no Worker; o site não serve ônibus ou horários fictícios. Planejamento completo de rotas, metrô, trens, login sincronizado, notificações e bilhetagem não estão implementados.
+Site publicado em https://andremellotech.github.io/ja-vem-sp/ e API em https://ja-vem-sp-api.andremello.workers.dev. A integração autenticada com a SPTrans foi validada em produção em 19/10/2026, incluindo busca de linhas, posições GPS, paradas e consulta de previsões (que pode retornar vazia). O token fica criptografado no Worker; o site não serve ônibus ou horários fictícios. Metrô/trens no planejador, login sincronizado, notificações e bilhetagem não estão implementados.
+
+## Origem e destino
+
+Confirme os dois endereços, ou use o GPS como origem, e clique em **Ver opções de ônibus**. Resultados aproximados exigem confirmação adicional. A busca considera paradas até 800 m de cada endereço, com ampliação explícita para 1.200 m quando não encontra opções. Mostra até seis alternativas diretas ou com uma troca na mesma parada cadastrada. A consulta de chegadas no embarque ou na troca usa a SPTrans e preserva os endereços para voltar ao trajeto.
+
+O cálculo usa itinerários e dias de serviço do GTFS oficial, em um Web Worker no navegador. Não usa horários de partida nem garante que a linha esteja operando naquele momento: pode incluir linhas noturnas conforme o calendário. As distâncias de acesso são em linha reta, não trajetos de caminhada; verifique travessias e acesso. Não há estimativa inventada de duração, espera, conexão ou “rota mais rápida”. Feed vencido ou incompatível interrompe o cálculo e pede atualização.
+
+Ao escolher uma linha, o mapa oculta a rede geral e completa as paradas vazias ou parciais do Olho Vivo com os itinerários GTFS dessa linha. O sentido é comparado por código, destino e paradas conhecidas, sem supor equivalência entre os identificadores de sentido dos dois fornecedores. Quando o sentido não pode ser confirmado, a interface avisa. Em um trajeto, são mostradas as paradas completas das linhas usadas, inclusive além do trecho de embarque/desembarque; outros pontos ficam ocultos.
+
+Endereços são enviados somente após clicar para localizar ao Photon/OpenStreetMap (`https://photon.komoot.io/api/`), com contexto de São Paulo. O site não armazena os endereços. Disponibilidade e cobertura dependem desse serviço externo. Para outro provedor Photon compatível, configure `VITE_GEOCODER_URL` antes do build. O GPS só é solicitado por ação do visitante.
 
 ## Desenvolvimento
 Requer Node.js 24 e pnpm 11.25.0; Python 3.11+ para o importador GTFS.
@@ -47,24 +57,25 @@ O workflow testa a aplicação antes de publicar. Mudanças na API exigem public
 O mapa mostra todas as paradas do GTFS oficial (`public/data/stops.json`), carregado pelo navegador sem passar pela API. Para atualizar:
 
 1. Baixe o `.zip` do GTFS no portal de desenvolvedores da SPTrans e guarde em `data/` (essa pasta está no `.gitignore`; não publique o feed original).
-2. Gere o arquivo de paradas:
+2. Gere juntos os arquivos de paradas e de itinerários:
 
 ```
-python scripts/import-gtfs.py data/gtfs.zip public/data/stops.json --source-url https://www.sptrans.com.br/desenvolvedores/ --retrieved-at AAAA-MM-DD --license "CONDICOES_DO_PORTAL"
+python scripts/import-gtfs.py data/gtfs.zip public/data/stops.json --planner-output public/data/planner.json --source-url https://www.sptrans.com.br/desenvolvedores/ --retrieved-at AAAA-MM-DD --license "CONDICOES_DO_PORTAL"
 ```
 
-3. Faça commit de `public/data/stops.json`. O arquivo traz a procedência (hash, data, validade do calendário). Linhas inválidas são ignoradas e contadas no relatório do comando.
+3. Faça commit de `public/data/stops.json` e `public/data/planner.json` juntos. Os arquivos trazem procedência e hash do mesmo ZIP; o planejador rejeita versões incompatíveis. A importação de paradas contabiliza registros inválidos; a geração do planejador valida referências, ordem de paradas e calendários antes de gravar. Rode os testes e publique o site novamente.
 
-O importador ainda não gera o índice de linhas, horários e frequências; o planejamento de rotas (origem e destino) depende desse passo. O identificador da parada no GTFS (`stop_id`) é o usado nas consultas de previsão; confira em produção que as previsões voltam para paradas escolhidas no mapa.
+O índice atual contém 1.349 linhas de ônibus, 2.240 itinerários e calendários/exceções de serviço, sem horários e frequências. O identificador da parada no GTFS (`stop_id`) é usado nas consultas de previsão. Ausência de previsão não comprova ausência de serviço; o próprio Olho Vivo pode não cobrir a parada.
 
 ## APIs próprias
 - `GET /api/health`
 - `GET /api/lines?q=675K`
+- `GET /api/stops?q=Paulista`
 - `GET /api/lines/198/stops`
 - `GET /api/lines/198/vehicles`
 - `GET /api/stops/4200953/arrivals?lineId=198`
 
-Os identificadores de linha/parada vêm da SPTrans; códigos exibidos como 675K-10 não substituem o identificador por sentido. Zero veículos ou previsões não comprova ausência de operação. A documentação da categoria Paradas informa cobertura de corredores; não pressupor que o retorno seja a rede completa de pontos. A expansão exige conferir e incorporar o GTFS oficial.
+Os identificadores de linha/parada vêm da SPTrans; códigos exibidos como 675K-10 não substituem o identificador por sentido. Zero veículos ou previsões não comprova ausência de operação. A documentação da categoria Paradas informa cobertura de corredores; a rede GTFS complementa esse retorno no navegador.
 
 ## Investigação do aplicativo de referência
 O inventário de engenharia reversa foi realizado separadamente com REA/JADX e evidências estáticas. APKs, bibliotecas de terceiros e evidências brutas não fazem parte deste repositório. Referências encontradas no APK não implicam acesso público às APIs do Moovit. A matriz funcional sanitizada descreve cobertura e limites.

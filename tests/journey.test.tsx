@@ -20,6 +20,7 @@ afterEach(() => {
 });
 it("explica configuração ausente sem simular chegadas", async () => {
   render(<App apiBase="" />);
+  fireEvent.click(screen.getByRole("button", { name: "Linhas e paradas" }));
   expect(screen.getAllByText(/conectar dados/i).length).toBeGreaterThan(0);
   fireEvent.change(screen.getByLabelText("Linha ou destino"), {
     target: { value: "Paulista" },
@@ -55,6 +56,7 @@ it("mantém a última busca quando respostas chegam fora de ordem", async () => 
     }),
   );
   render(<App apiBase="https://api.test" />);
+  fireEvent.click(screen.getByRole("button", { name: "Linhas e paradas" }));
   const input = screen.getByLabelText("Linha ou destino");
   fireEvent.change(input, { target: { value: "antiga" } });
   fireEvent.click(screen.getByRole("button", { name: "Buscar ônibus" }));
@@ -133,6 +135,7 @@ it("remove previsões quando sua própria atualização falha", async () => {
     }),
   );
   render(<App apiBase="https://api.test" />);
+  fireEvent.click(screen.getByRole("button", { name: "Linhas e paradas" }));
   fireEvent.change(screen.getByLabelText("Linha ou destino"), {
     target: { value: "675K" },
   });
@@ -193,6 +196,7 @@ it("mostra paradas encontradas na busca e consulta chegadas de todas as linhas",
     }),
   );
   render(<App apiBase="https://api.test" />);
+  fireEvent.click(screen.getByRole("button", { name: "Linhas e paradas" }));
   fireEvent.change(screen.getByLabelText("Linha ou destino"), {
     target: { value: "Paulista" },
   });
@@ -251,6 +255,7 @@ it("lista paradas do GTFS perto de você e consulta chegadas de todas as linhas"
     }),
   );
   render(<App apiBase="https://api.test" />);
+  fireEvent.click(screen.getByRole("button", { name: "Linhas e paradas" }));
   fireEvent.click(screen.getByRole("button", { name: "Minha localização" }));
   fireEvent.click(await screen.findByRole("button", { name: /Parada Perto/ }));
   await screen.findByText("12:05");

@@ -1674,3 +1674,583 @@ code {
     font-size: 12px;
   }
 }
+
+/* Planejamento entre endereços e paradas restritas às linhas selecionadas. */
+.journey-pane[hidden],
+.lines-pane[hidden] {
+  display: none !important;
+}
+.journey-mode-switch {
+  display: flex;
+  gap: 5px;
+  padding: 5px;
+  background: #f1f4ed;
+  border: 1px solid #e2e8dc;
+  border-radius: 12px;
+  margin-bottom: 18px;
+  flex-shrink: 0;
+}
+.journey-mode-switch button {
+  flex: 1;
+  min-height: 44px;
+  padding: 9px 8px;
+  font-size: 13px;
+  border-radius: 8px;
+  color: #5a705d;
+  font-weight: 600;
+}
+.journey-mode-switch button[aria-pressed="true"] {
+  background: #fff;
+  color: #204936;
+  box-shadow: 0 1px 5px #193a3110;
+}
+.journey-layout .sidebar > h1 {
+  font-size: 30px;
+  margin: 14px 0 10px;
+}
+.journey-layout .intro {
+  font-size: 13px;
+  margin-bottom: 18px;
+}
+.journey-layout .intro br {
+  display: none;
+}
+.address-privacy {
+  font-size: 11px;
+  line-height: 1.65;
+  color: #637462;
+  margin: 0 0 18px;
+}
+.address-privacy a {
+  text-underline-offset: 2px;
+}
+.address-field {
+  border: 1px solid #dce5d5;
+  border-radius: 12px;
+  background: #fafbf8;
+  padding: 14px;
+}
+.address-confirmed {
+  border-color: #a9be8f;
+  background: #f6faef;
+}
+.address-field > label {
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.journey-dot {
+  width: 9px;
+  height: 9px;
+  display: inline-block;
+  background: #3775bd;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 3px #e4edf7;
+}
+.journey-dot.destination {
+  background: #c16d36;
+  box-shadow: 0 0 0 3px #f7eadd;
+  border-radius: 2px;
+}
+.address-input-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e2e7db;
+  border-radius: 8px;
+}
+.address-input-row input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 11px 42px 11px 11px;
+  min-height: 46px;
+  font-size: 14px;
+  border-radius: 8px;
+  color: var(--ink);
+}
+.address-input-row input::placeholder {
+  color: #7a8575;
+  font-size: 13px;
+}
+.address-clear {
+  position: absolute;
+  right: 0;
+  width: 40px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  color: #687d61;
+}
+.address-search-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 8px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #315c42;
+}
+.address-search-button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.address-confirmation {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #4c6e36;
+  margin: 10px 0 0;
+}
+.address-results {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+  border-top: 1px solid #dfe7d6;
+  max-height: 280px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.address-results li + li {
+  border-top: 1px solid #e1e7db;
+}
+.address-results button {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  align-items: flex-start;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 12px 3px;
+  min-height: 48px;
+  border-radius: 4px;
+}
+.address-results svg {
+  margin-top: 3px;
+  flex-shrink: 0;
+  color: #728d58;
+}
+.address-results button:hover {
+  background: #edf3e5;
+}
+.address-results small {
+  display: block;
+  color: #8b632b;
+  font-size: 11px;
+  margin-top: 4px;
+}
+.address-approximate {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #fff6e5;
+  color: #79562c;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.address-approximate p {
+  margin: 0 0 8px;
+}
+.address-approximate button {
+  background: #fff;
+  border: 1px solid #dbc7a3;
+  border-radius: 7px;
+  min-height: 44px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  width: 100%;
+}
+.address-status {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #64785c;
+  margin: 10px 0 0;
+}
+.address-error {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #945132;
+}
+.address-error p {
+  margin: 10px 0 0;
+}
+.address-error button {
+  min-height: 44px;
+  text-decoration: underline;
+  font-weight: 600;
+}
+.journey-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 54px;
+  padding: 2px 3px;
+}
+.journey-locate {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  min-height: 44px;
+  font-size: 12px;
+  color: #3c664b;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 6px 0;
+}
+.journey-invert {
+  border: 1px solid #dde5d6;
+  background: #fff;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+}
+.journey-submit {
+  background: var(--ink);
+  color: #f8fbef;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 50px;
+  padding: 13px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 18px;
+}
+.journey-submit > svg:last-child {
+  margin-left: auto;
+  color: var(--lime);
+}
+.journey-submit:disabled {
+  opacity: 0.48;
+  cursor: default;
+}
+.journey-submit:not(:disabled):hover {
+  background: #28553e;
+}
+.journey-search-note {
+  font-size: 11px;
+  color: #64775c;
+  line-height: 1.65;
+  margin: 10px 0 18px;
+}
+.journey-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 10px 0;
+}
+.journey-result-state .message button {
+  min-height: 44px;
+  text-decoration: underline;
+  font-size: 12px;
+}
+.journey-empty {
+  border: 1px solid #dfe6d7;
+  border-radius: 12px;
+  padding: 18px;
+  text-align: left;
+  background: #f8faf4;
+  margin: 16px 0;
+}
+.journey-empty h3 {
+  font-size: 16px;
+  margin: 10px 0;
+}
+.journey-empty p {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #647458;
+}
+.journey-empty button {
+  width: 100%;
+  border: 1px solid #c7d5b6;
+  min-height: 46px;
+  padding: 9px;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+.journey-options-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 24px;
+}
+.journey-options-heading h2 {
+  font-size: 17px;
+  line-height: 1.5;
+  margin: 0;
+}
+.journey-options-heading > span {
+  margin-left: auto;
+  border-radius: 6px;
+  padding: 4px 8px;
+  background: #edf3e3;
+  font-size: 12px;
+}
+.journey-disclaimer {
+  font-size: 11px;
+  line-height: 1.7;
+  color: #66795b;
+  margin: 10px 0 16px;
+}
+.journey-option {
+  background: #fff;
+  border: 1px solid #e0e6d9;
+  border-radius: 13px;
+  margin-bottom: 15px;
+  overflow: hidden;
+  padding: 16px;
+}
+.journey-option-selected {
+  border-color: #9fb97f;
+  box-shadow: 0 0 0 1px #dce8cd;
+}
+.journey-option-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: #718068;
+}
+.journey-option-title strong {
+  font-size: 11px;
+  border-radius: 5px;
+  background: #edf4e1;
+  color: #42643b;
+  padding: 4px 8px;
+}
+.journey-line-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0;
+}
+.journey-line-badges > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.journey-line-badges b {
+  background: #254e3b;
+  color: #f7fbe9;
+  border-radius: 6px;
+  padding: 7px 10px;
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+}
+.journey-distances {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e4e9de;
+  color: #6b7a60;
+  font-size: 10px;
+  line-height: 1.6;
+}
+.journey-distances b {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #385b3e;
+  margin-top: 3px;
+}
+.journey-legs {
+  list-style: none;
+  padding: 0;
+  margin: 14px 0 0;
+}
+.journey-legs li + li {
+  margin-top: 16px;
+}
+.journey-direction {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #607557;
+  margin: 0 0 10px;
+  flex-wrap: wrap;
+}
+.journey-direction > svg {
+  flex-shrink: 0;
+}
+.journey-stop {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 9px 0;
+}
+.journey-stop > svg {
+  flex-shrink: 0;
+  margin-top: 4px;
+  color: #90a37d;
+}
+.journey-stop small {
+  display: block;
+  font-size: 10px;
+  color: #748169;
+  line-height: 1.6;
+}
+.journey-stop strong {
+  display: block;
+  font-size: 12px;
+  line-height: 1.6;
+  font-weight: 600;
+}
+.journey-transfer {
+  font-size: 11px;
+  color: #8b632b;
+  background: #fff8e8;
+  padding: 9px;
+  border-radius: 6px;
+  line-height: 1.6;
+  margin: 12px 0;
+}
+.journey-option-actions {
+  display: flex;
+  gap: 7px;
+  margin-top: 16px;
+}
+.journey-option-actions button {
+  min-height: 44px;
+  border: 1px solid #dce5d2;
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 11px;
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  line-height: 1.5;
+}
+.journey-option-actions button svg {
+  flex-shrink: 0;
+}
+.journey-option-actions button[aria-pressed="true"] {
+  background: #edf5df;
+  border-color: #becfa7;
+}
+.journey-transfer-arrivals {
+  font-size: 11px;
+  min-height: 44px;
+  margin-top: 4px;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.line-stop-note {
+  font-size: 12px;
+  line-height: 1.7;
+  color: #5d7253;
+  background: #f4f8ed;
+  border: 1px solid #e3ead9;
+  border-radius: 8px;
+  padding: 11px;
+  margin: 14px 0;
+}
+.map-route-count {
+  position: absolute;
+  top: 75px;
+  left: 24px;
+  z-index: 3;
+  border-radius: 8px;
+  border: 1px solid #dce5d2;
+  background: #fffffff0;
+  padding: 8px 11px;
+  font-size: 11px;
+  color: #35553e;
+  pointer-events: none;
+  box-shadow: 0 2px 7px #193a310b;
+}
+@media (max-width: 740px) {
+  .journey-layout .sidebar {
+    padding-top: 20px;
+  }
+  .journey-layout .sidebar > .eyebrow {
+    display: none;
+  }
+  .journey-layout .sidebar > h1 {
+    font-size: 27px;
+    line-height: 1.3;
+    margin: 0 0 10px;
+  }
+  .journey-layout .intro {
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .journey-mode-switch {
+    margin-bottom: 16px;
+  }
+  .journey-mode-switch button {
+    font-size: 13px;
+  }
+  .address-input-row input {
+    font-size: 16px;
+  }
+  .address-input-row input::placeholder {
+    font-size: 14px;
+  }
+  .address-field > label {
+    font-size: 14px;
+  }
+  .address-results button {
+    font-size: 13px;
+  }
+  .address-privacy,
+  .journey-search-note,
+  .journey-disclaimer {
+    font-size: 12px;
+  }
+  .journey-option {
+    padding: 16px;
+  }
+  .journey-stop strong {
+    font-size: 13px;
+  }
+  .journey-option-actions button {
+    font-size: 12px;
+  }
+  .app-layout[data-view="map"] .journey-pane {
+    display: none;
+  }
+  .app-layout[data-view="map"] .journey-mode-switch {
+    margin-bottom: 0;
+  }
+  .map-route-count {
+    top: 75px;
+    left: 16px;
+    font-size: 10px;
+    max-width: calc(100% - 94px);
+    line-height: 1.5;
+  }
+}
