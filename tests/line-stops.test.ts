@@ -84,3 +84,21 @@ it("identifica cobertura parcial quando não existe rota na base GTFS", () => {
   expect(result.source).toBe("api");
   expect(result.note).toMatch(/parciais/i);
 });
+it("preserva a referência GTFS quando a API atualiza um ponto sem endereço", () => {
+  const idx = index();
+  idx.stops.byId.get("X")!.ref =
+    "Av. Santo Amaro, 4440 · R Bernardino de Campos";
+  const provider = { id: "X", name: "MORUMBI C/B", lat: -23.56, lon: -46.64 };
+  const stop = resolveLineStops(line, idx, [provider]).stops.find(
+    (s) => s.id === "X",
+  )!;
+  expect(stop).toEqual({
+    ...provider,
+    address: "Av. Santo Amaro, 4440 · R Bernardino de Campos",
+  });
+  expect(
+    resolveLineStops(line, idx, [
+      { ...provider, address: "Endereço atualizado" },
+    ]).stops.find((s) => s.id === "X")!.address,
+  ).toBe("Endereço atualizado");
+});

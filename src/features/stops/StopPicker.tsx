@@ -2,12 +2,27 @@ import { useState } from "react";
 import { ChevronRight, LocateFixed, MapPin, Search, X } from "lucide-react";
 import type { Stop } from "../../contracts";
 import { distanceM } from "./network";
+const streetWords: Record<string, string> = {
+  r: "rua",
+  av: "avenida",
+  tv: "travessa",
+  tr: "travessa",
+  al: "alameda",
+  estr: "estrada",
+  pca: "praca",
+  sto: "santo",
+  sta: "santa",
+};
 const normalize = (value: string) =>
   value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLocaleLowerCase("pt-BR")
-    .trim();
+    .replace(/[.,/():]/g, " ")
+    .trim()
+    .split(/\s+/)
+    .map((word) => streetWords[word] ?? word)
+    .join(" ");
 function distanceLabel(meters: number) {
   if (meters < 50) return "< 50 m";
   if (meters < 1000) return `${Math.round(meters / 10) * 10} m`;
@@ -35,7 +50,11 @@ export default function StopPicker({
         ? distanceM(location[0], location[1], stop.lat, stop.lon)
         : null,
     }))
-    .filter(({ stop }) => normalize(stop.name).includes(normalize(query)));
+    .filter(({ stop }) =>
+      normalize(
+        [stop.name, stop.address, stop.id].filter(Boolean).join(" "),
+      ).includes(normalize(query)),
+    );
   if (location) visible.sort((a, b) => a.distance! - b.distance!);
   return (
     <section className="stop-picker" aria-label="Paradas da linha">
@@ -49,7 +68,7 @@ export default function StopPicker({
         <Search size={17} aria-hidden="true" />
         <input
           aria-label="Buscar parada nesta linha"
-          placeholder="Buscar parada pelo nome"
+          placeholder="Nome, rua ou código da parada"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
@@ -85,6 +104,9 @@ export default function StopPicker({
             </span>
             <span>
               {stop.name}
+              {stop.address && (
+                <small className="stop-address">{stop.address}</small>
+              )}
               {distance !== null && (
                 <small className="stop-distance">
                   {distanceLabel(distance)}
@@ -97,7 +119,7 @@ export default function StopPicker({
       </div>
       {!visible.length && (
         <p className="muted" role="status">
-          Nenhuma parada com esse nome. Tente outro trecho do nome.
+          Nenhuma parada com essa busca. Tente o nome, a rua ou o código.
         </p>
       )}
     </section>

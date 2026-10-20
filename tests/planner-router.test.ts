@@ -79,7 +79,7 @@ it("respeita o raio explícito e retorna razão quando faltam paradas", () => {
     findJourneys(idx, { ...input, origin: { lat: 0, lon: 0 } }).reason,
   ).toBe("NO_NEARBY_STOPS");
 });
-it("limita a 12 paradas próximas, sem incluir ponto ferroviário fora das viagens", () => {
+it("considera a 13ª parada de origem dentro do raio, sem incluir ponto ferroviário fora das viagens", () => {
   const starts = Array.from({ length: 13 }, (_, i) => ({
     ...networkStops[0],
     id: "B" + i,
@@ -90,7 +90,17 @@ it("limita a 12 paradas próximas, sem incluir ponto ferroviário fora das viage
   );
   const idx = createPlannerIndex(fixture(trips), [...networkStops, ...starts]);
   expect(idx.stops.byId.has("M")).toBe(false);
-  expect(findJourneys(idx, input).options).toEqual([]);
+  expect(findJourneys(idx, input).options[0].legs[0].tripId).toBe("t12");
+});
+it("considera a 13ª parada de destino dentro do raio", () => {
+  const ends = Array.from({ length: 13 }, (_, i) => ({
+    ...networkStops[2],
+    id: "E" + i,
+    lat: networkStops[2].lat + i * 0.00001,
+  }));
+  const trips = ends.map((s, i) => trip("t" + i, [i === 12 ? "A" : "X", s.id]));
+  const idx = createPlannerIndex(fixture(trips), [...networkStops, ...ends]);
+  expect(findJourneys(idx, input).options[0].legs[0].tripId).toBe("t12");
 });
 it("deduplica e limita as alternativas a seis", () => {
   const idx = createPlannerIndex(

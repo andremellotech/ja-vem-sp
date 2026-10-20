@@ -123,9 +123,20 @@ export function resolveLineStops(
       ...(s.ref ? { address: s.ref } : {}),
     });
   }
-  for (const s of api) stops.set(s.id, s);
+  for (const s of api) {
+    const cadastral = stops.get(s.id);
+    stops.set(s.id, {
+      ...cadastral,
+      ...s,
+      ...(s.address?.trim()
+        ? { address: s.address }
+        : cadastral?.address
+          ? { address: cadastral.address }
+          : {}),
+    });
+  }
   const note = directionMatched
-    ? "Paradas completas do itinerário cadastrado no GTFS para este sentido. Pode haver variantes."
+    ? "Paradas cadastradas no GTFS para este sentido. Alterações recentes e desvios podem não estar incluídos."
     : groups.size === 1
       ? "Paradas do único itinerário cadastrado desta linha no GTFS. Confirme o sentido na parada."
       : "Paradas desta linha nos sentidos cadastrados no GTFS. A correspondência com o sentido selecionado não foi confirmada.";

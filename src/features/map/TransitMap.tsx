@@ -91,7 +91,7 @@ export default function TransitMap({
         fillOpacity: 1,
       }).addTo(group);
       const label = document.createElement("span");
-      label.textContent = stop.name;
+      label.textContent = [stop.name, stop.address].filter(Boolean).join(" · ");
       marker.bindTooltip(label);
       marker.on("click", () => onSelectStop(stop.id));
     }
@@ -160,7 +160,7 @@ export default function TransitMap({
     for (const s of journey.stops)
       mark(
         s,
-        s.name,
+        [s.name, s.address].filter(Boolean).join(" · "),
         selectedStop === s.id ? "#df7137" : "#285f50",
         selectedStop === s.id ? 9 : 5,
         () => onSelectStop(s.id),

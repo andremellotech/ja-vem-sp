@@ -42,8 +42,7 @@ export function findJourneys(
       .nearest(p.lat, p.lon, input.radiusM, index.stops.all.length)
       .filter((s) =>
         index.occurrences.get(s.id)?.some((o) => active.has(o.tripIndex)),
-      )
-      .slice(0, 12);
+      );
   const origins = nearest(input.origin),
     destinations = nearest(input.destination);
   if (!origins.length || !destinations.length)
