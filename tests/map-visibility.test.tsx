@@ -2,7 +2,7 @@ import React from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
 import TransitMap from "../src/features/map/TransitMap";
-import type {JourneyMapSelection} from '../src/features/journey/types';
+import type { JourneyMapSelection } from "../src/features/journey/types";
 
 // Replace the rendering engine, keeping TransitMap's visibility and framing logic real.
 const engine = vi.hoisted(() => ({
@@ -36,13 +36,50 @@ vi.mock("leaflet", () => {
   };
 });
 
-it('enquadra o trajeto escolhido na lista só quando o mapa fica visível',()=>{
-  engine.width=0;engine.height=0;
-  vi.stubGlobal('ResizeObserver',class {constructor(callback:()=>void){engine.resize=callback;}observe(){}disconnect(){}});
-  const journey:JourneyMapSelection={origin:{lat:-23.5,lon:-46.6},destination:{lat:-23.6,lon:-46.7},stops:[{id:'1',name:'Origem',lat:-23.51,lon:-46.61},{id:'2',name:'Destino',lat:-23.59,lon:-46.69}]};
-  render(<TransitMap stops={[]} vehicles={[]} selectedStop={null} onSelectStop={()=>{}} location={null} journey={journey}/>);
-  expect(engine.fitBounds).not.toHaveBeenCalled();engine.width=390;engine.height=540;act(()=>engine.resize());
-  expect(engine.fitBounds).toHaveBeenCalledWith(expect.arrayContaining([[-23.5,-46.6],[-23.6,-46.7],[-23.51,-46.61],[-23.59,-46.69]]),{padding:[40,40],maxZoom:15});
+it("enquadra o trajeto escolhido na lista só quando o mapa fica visível", () => {
+  engine.width = 0;
+  engine.height = 0;
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      constructor(callback: () => void) {
+        engine.resize = callback;
+      }
+      observe() {}
+      disconnect() {}
+    },
+  );
+  const journey: JourneyMapSelection = {
+    origin: { lat: -23.5, lon: -46.6 },
+    destination: { lat: -23.6, lon: -46.7 },
+    stops: [
+      { id: "1", name: "Origem", lat: -23.51, lon: -46.61 },
+      { id: "2", name: "Destino", lat: -23.59, lon: -46.69 },
+    ],
+  };
+  render(
+    <TransitMap
+      stops={[]}
+      vehicles={[]}
+      selectedStop={null}
+      onSelectStop={() => {}}
+      location={null}
+      journey={journey}
+    />,
+  );
+  expect(engine.fitBounds).not.toHaveBeenCalled();
+  engine.width = 390;
+  engine.height = 540;
+  act(() => engine.resize());
+  expect(engine.fitBounds).toHaveBeenCalledWith(
+    expect.arrayContaining([
+      [-23.5, -46.6],
+      [-23.6, -46.7],
+      [-23.51, -46.61],
+      [-23.59, -46.69],
+    ]),
+    { padding: [40, 40], maxZoom: 15 },
+  );
 });
 afterEach(() => {
   cleanup();
