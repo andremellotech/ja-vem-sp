@@ -28,6 +28,21 @@ export default function TransitMap({
   const [view, setView] = useState(0),
     [hint, setHint] = useState<"zoom" | "dense" | null>(null);
   const fitted = useRef("");
+  const pendingBounds = useRef<L.LatLngBounds | null>(null);
+  const pendingFocus = useRef<{ point: L.LatLngTuple; zoom: number } | null>(
+    null,
+  );
+  function fitWhenVisible(m: L.Map) {
+    const size = m.getSize();
+    if (size.x <= 0 || size.y <= 0) return;
+    if (pendingFocus.current) {
+      m.setView(pendingFocus.current.point, pendingFocus.current.zoom);
+      pendingFocus.current = null;
+    } else if (pendingBounds.current) {
+      m.fitBounds(pendingBounds.current, { padding: [40, 40], maxZoom: 15 });
+      pendingBounds.current = null;
+    }
+  }
   useEffect(() => {
     if (!host.current) return;
     const m = L.map(host.current, {
@@ -45,7 +60,10 @@ export default function TransitMap({
     layers.current = L.layerGroup().addTo(m);
     map.current = m;
     m.on("moveend", () => setView((v) => v + 1));
-    const resize = new ResizeObserver(() => m.invalidateSize());
+    const resize = new ResizeObserver(() => {
+      m.invalidateSize();
+      fitWhenVisible(m);
+    });
     resize.observe(host.current);
     return () => {
       resize.disconnect();
@@ -94,8 +112,13 @@ export default function TransitMap({
     const key = stops.map((s) => s.id).join(",");
     if (key && key !== fitted.current) {
       const points = stops.map((s) => [s.lat, s.lon] as L.LatLngTuple);
-      m.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 15 });
+      pendingFocus.current = null;
+      pendingBounds.current = L.latLngBounds(points);
       fitted.current = key;
+      fitWhenVisible(m);
+    } else if (!key) {
+      fitted.current = "";
+      pendingBounds.current = null;
     }
   }, [stops, vehicles, selectedStop, onSelectStop, location]);
   useEffect(() => {
@@ -135,11 +158,21 @@ export default function TransitMap({
     const s =
       stops.find((x) => x.id === selectedStop) ??
       (selectedStop ? network?.byId.get(selectedStop) : undefined);
-    if (s && map.current)
-      map.current.setView([s.lat, s.lon], Math.max(map.current.getZoom(), 15));
+    if (s && map.current) {
+      pendingBounds.current = null;
+      pendingFocus.current = {
+        point: [s.lat, s.lon],
+        zoom: Math.max(map.current.getZoom(), 15),
+      };
+      fitWhenVisible(map.current);
+    }
   }, [selectedStop]);
   useEffect(() => {
-    if (location) map.current?.setView(location, 15);
+    if (location && map.current) {
+      pendingBounds.current = null;
+      pendingFocus.current = { point: location, zoom: 15 };
+      fitWhenVisible(map.current);
+    }
   }, [location]);
   return (
     <>

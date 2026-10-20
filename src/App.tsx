@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import {
   ArrowRight,
+  ArrowLeftRight,
   ArrowUpRight,
   BusFront,
   Check,
@@ -15,9 +16,12 @@ import {
   Heart,
   Info,
   LocateFixed,
+  List,
+  Map,
   MapPin,
   Navigation,
   Radio,
+  RefreshCw,
   Search,
   Settings2,
   ShieldCheck,
@@ -32,6 +36,7 @@ import {
   type Arrival,
 } from "./contracts";
 import TransitMap from "./features/map/TransitMap";
+import StopPicker from "./features/stops/StopPicker";
 import {
   distanceM,
   loadNetwork,
@@ -103,6 +108,12 @@ export default function App({
       return [];
     }
   });
+  const [view, setView] = useState<"list" | "map">("list");
+  const [lineLoading, setLineLoading] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const [manualRefreshing, setManualRefreshing] = useState(false);
+  const lineRefresh = useRef<(() => Promise<void>) | null>(null);
+  const arrivalRefresh = useRef<(() => Promise<void>) | null>(null);
   const dialogRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (!settings) return;
@@ -158,11 +169,27 @@ export default function App({
     return () => c.abort();
   }, [apiBase]);
   useEffect(() => () => searchController.current?.abort(), []);
+  function showTab(next: "search" | "favorites") {
+    generation.current++;
+    searchController.current?.abort();
+    setBusy(false);
+    setStopsBusy(false);
+    setSwitching(false);
+    setLine(null);
+    setStops([]);
+    setVehicles([]);
+    setStop(null);
+    setError("");
+    setTab(next);
+    setView("list");
+  }
   const search = async (value = query) => {
     const q = value.trim();
     if (!q) return;
     setQuery(q);
     setTab("search");
+    setView("list");
+    setSwitching(false);
     const current = ++generation.current;
     searchController.current?.abort();
     const c = new AbortController();
@@ -224,6 +251,7 @@ export default function App({
     async function refresh() {
       if (running || document.hidden) return;
       running = true;
+      if (active) setLineLoading(true);
       try {
         const [s, v] = await Promise.all([
           stopsLoaded
@@ -243,6 +271,7 @@ export default function App({
           setVehicles(v.data);
           setUpdated(v.fetchedAt);
           setObserved(v.observedAt);
+          setOnline(true);
           setError("");
         }
       } catch (e) {
@@ -254,8 +283,10 @@ export default function App({
           );
       } finally {
         running = false;
+        if (active) setLineLoading(false);
       }
     }
+    lineRefresh.current = refresh;
     void refresh();
     const timer = setInterval(refresh, 30000);
     const visible = () => {
@@ -266,6 +297,7 @@ export default function App({
       active = false;
       c.abort();
       clearInterval(timer);
+      lineRefresh.current = null;
       document.removeEventListener("visibilitychange", visible);
     };
   }, [line, apiBase]);
@@ -312,6 +344,7 @@ export default function App({
         if (active) setArrivalLoading(false);
       }
     }
+    arrivalRefresh.current = refresh;
     void refresh();
     const timer = setInterval(refresh, 30000);
     const visible = () => {
@@ -322,6 +355,7 @@ export default function App({
       active = false;
       c.abort();
       clearInterval(timer);
+      arrivalRefresh.current = null;
       document.removeEventListener("visibilitychange", visible);
     };
   }, [stop, line, apiBase]);
@@ -330,7 +364,55 @@ export default function App({
   const selectStop = useCallback((id: string) => {
     setStop(id);
     setTab("search");
+    setView("list");
   }, []);
+  async function refreshNow() {
+    if (manualRefreshing) return;
+    setManualRefreshing(true);
+    try {
+      await Promise.all([lineRefresh.current?.(), arrivalRefresh.current?.()]);
+    } finally {
+      setManualRefreshing(false);
+    }
+  }
+  async function switchDirection() {
+    if (!line || switching) return;
+    const current = ++generation.current;
+    searchController.current?.abort();
+    const controller = new AbortController();
+    searchController.current = controller;
+    setSwitching(true);
+    setError("");
+    const opposite = (candidate: Line) =>
+      candidate.code === line.code &&
+      candidate.direction !== line.direction &&
+      candidate.id !== line.id;
+    try {
+      let next = [...lines, ...savedLines].find(opposite);
+      if (!next) {
+        const response = await request<Line[]>(
+          apiBase,
+          "/api/lines?q=" + encodeURIComponent(line.code),
+          controller.signal,
+        );
+        if (current !== generation.current || controller.signal.aborted) return;
+        next = response.data.find(opposite);
+        setLines(response.data);
+      }
+      if (current !== generation.current || controller.signal.aborted) return;
+      if (next) setLine(next);
+      else setError("O sentido oposto não está disponível nesta consulta.");
+    } catch (e) {
+      if (current === generation.current && !controller.signal.aborted)
+        setError(
+          e instanceof ApiError
+            ? e.message
+            : "Não foi possível consultar o outro sentido. Tente novamente.",
+        );
+    } finally {
+      if (current === generation.current) setSwitching(false);
+    }
+  }
   function favorite(id: string) {
     const ids = favorites.includes(id)
       ? favorites.filter((x) => x !== id)
@@ -439,7 +521,7 @@ export default function App({
           href="#"
           onClick={(e) => {
             e.preventDefault();
-            setLine(null);
+            showTab("search");
           }}
           aria-label="Já Vem SP início"
         >
@@ -454,13 +536,15 @@ export default function App({
         <nav aria-label="Principal">
           <button
             className={tab === "search" ? "nav-active" : ""}
-            onClick={() => setTab("search")}
+            onClick={() => showTab("search")}
+            aria-pressed={tab === "search"}
           >
             <Navigation size={16} /> Explorar
           </button>
           <button
             className={tab === "favorites" ? "nav-active" : ""}
-            onClick={() => setTab("favorites")}
+            onClick={() => showTab("favorites")}
+            aria-pressed={tab === "favorites"}
           >
             <Heart size={16} /> Favoritos{" "}
             <span className="count">{favorites.length}</span>
@@ -473,7 +557,32 @@ export default function App({
           <span className="city-label">Ônibus municipais</span>
         </div>
       </header>
-      <main className="app-layout">
+      <div
+        className="mobile-view-switch"
+        role="group"
+        aria-label="Visualização"
+      >
+        <button
+          onClick={() => setView("list")}
+          aria-pressed={view === "list"}
+          aria-controls="line-panel"
+        >
+          <List size={18} /> Lista
+        </button>
+        <button
+          onClick={() => setView("map")}
+          aria-pressed={view === "map"}
+          aria-controls="map-panel"
+        >
+          <Map size={18} /> Mapa
+        </button>
+      </div>
+      <main
+        className={
+          "app-layout " + (line ? "has-line" : searched ? "has-results" : "")
+        }
+        data-view={view}
+      >
         <aside className="sidebar">
           <div className="eyebrow">
             <span /> SEU DIA, EM MOVIMENTO
@@ -528,18 +637,12 @@ export default function App({
                   : "Encontre seu caminho"}
             </h2>
             {line && (
-              <button
-                className="text-btn"
-                onClick={() => {
-                  setLine(null);
-                  setError("");
-                }}
-              >
+              <button className="text-btn" onClick={() => showTab(tab)}>
                 Voltar
               </button>
             )}
           </div>
-          <div className="panel-content" aria-live="polite">
+          <div className="panel-content" id="line-panel" aria-live="polite">
             {busy && (
               <div className="loading">
                 <span className="spinner" />
@@ -567,7 +670,12 @@ export default function App({
                       "icon-btn " +
                       (favorites.includes(line.id) ? "is-favorite" : "")
                     }
-                    aria-label="Favoritar linha"
+                    aria-label={
+                      favorites.includes(line.id)
+                        ? "Remover linha dos favoritos"
+                        : "Favoritar linha"
+                    }
+                    aria-pressed={favorites.includes(line.id)}
                     onClick={() => favorite(line.id)}
                   >
                     <Heart
@@ -584,13 +692,40 @@ export default function App({
                   <div className="line-metrics">
                     <span>
                       <Radio size={14} />
-                      {vehicles.length} veículos informados
+                      {updated
+                        ? `${vehicles.length} veículos informados`
+                        : error
+                          ? "Frota indisponível"
+                          : "Consultando frota…"}
                     </span>
                     <span>
                       <MapPin size={14} />
-                      {stops.length} paradas
+                      {updated
+                        ? `${stops.length} paradas`
+                        : error
+                          ? "Paradas indisponíveis"
+                          : "Consultando paradas…"}
                     </span>
                   </div>
+                </div>
+                <div className="line-actions">
+                  <button
+                    onClick={() => void switchDirection()}
+                    disabled={switching}
+                  >
+                    <ArrowLeftRight size={16} />{" "}
+                    {switching ? "Consultando sentido…" : "Trocar sentido"}
+                  </button>
+                  <button
+                    onClick={() => void refreshNow()}
+                    disabled={manualRefreshing || lineLoading || arrivalLoading}
+                  >
+                    <RefreshCw
+                      size={16}
+                      className={manualRefreshing ? "refresh-spin" : ""}
+                    />
+                    {manualRefreshing ? "Atualizando…" : "Atualizar agora"}
+                  </button>
                 </div>
                 {updated && (
                   <p className="data-time">
@@ -599,23 +734,22 @@ export default function App({
                   </p>
                 )}
                 {arrivalCard}
-                <div className="stop-list">
-                  {stops.map((s, i) => (
-                    <button
-                      className={stop === s.id ? "stop selected" : "stop"}
-                      key={s.id}
-                      onClick={() => setStop(s.id)}
-                    >
-                      <span className="stop-number">{i + 1}</span>
-                      <span>{s.name}</span>
-                      <ChevronRight size={16} />
-                    </button>
-                  ))}
-                </div>
+                {!!stops.length && (
+                  <StopPicker
+                    key={line.id}
+                    stops={stops}
+                    selectedId={stop}
+                    onSelect={selectStop}
+                    location={location}
+                    onLocate={locate}
+                  />
+                )}
+
                 {!stops.length && !error && (
                   <p className="muted">
-                    Carregando paradas ou sem paradas informadas para esta
-                    linha.
+                    {lineLoading
+                      ? "Consultando paradas na SPTrans…"
+                      : "A SPTrans não informou paradas para esta linha nesta consulta."}
                   </p>
                 )}
               </>
@@ -677,7 +811,12 @@ export default function App({
                         (favorites.includes(l.id) ? "is-favorite" : "")
                       }
                       onClick={() => favorite(l.id)}
-                      aria-label={"Favoritar " + l.code}
+                      aria-label={
+                        (favorites.includes(l.id)
+                          ? "Remover favorito "
+                          : "Favoritar ") + l.code
+                      }
+                      aria-pressed={favorites.includes(l.id)}
                     >
                       <Heart
                         size={17}
@@ -789,7 +928,11 @@ export default function App({
             <ArrowUpRight size={16} />
           </div>
         </aside>
-        <section className="map-section" aria-label="Explorar mapa">
+        <section
+          className="map-section"
+          id="map-panel"
+          aria-label="Explorar mapa"
+        >
           <TransitMap
             network={network}
             stops={mapStops}
@@ -807,9 +950,18 @@ export default function App({
                 São Paulo<small>Uma cidade. Muitos caminhos.</small>
               </span>
             </div>
-            <div className={"connection-pill " + (online ? "connected" : "")}>
+            <div
+              className={
+                "connection-pill " +
+                (online && !error && !arrivalError ? "connected" : "")
+              }
+            >
               <span />
-              {online ? "SPTrans conectada" : "Dados ao vivo não conectados"}
+              {error || arrivalError
+                ? "Atualização indisponível"
+                : online
+                  ? "SPTrans conectada"
+                  : "Dados ao vivo não conectados"}
             </div>
           </div>
           <div className="map-controls">
@@ -917,10 +1069,16 @@ export default function App({
               </strong>
             </div>
             <p>
-              Para ativar, o responsável pelo site deve publicar a API,
-              configurar o token da SPTrans como segredo e definir{" "}
-              <code>VITE_API_BASE_URL</code> no build da interface.
+              Os dados são atualizados a cada 30 segundos enquanto esta página
+              está visível. O horário GPS informa quando a posição foi
+              registrada. Previsões podem mudar ou ficar indisponíveis.
             </p>
+            {!apiBase && (
+              <p>
+                O serviço de dados aguarda configuração pelo responsável pelo
+                site.
+              </p>
+            )}
             <p>
               O mapa usa OpenStreetMap. Favoritos são salvos apenas neste
               navegador. Rotas completas, metrô, trens e bilhetagem ainda não
