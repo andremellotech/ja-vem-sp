@@ -84,6 +84,32 @@ it("identifica cobertura parcial quando não existe rota na base GTFS", () => {
   expect(result.source).toBe("api");
   expect(result.note).toMatch(/parciais/i);
 });
+it("não confirma sentido por uma parada compartilhada quando só há um itinerário", () => {
+  const idx = index();
+  idx.data.trips.splice(1);
+  const result = resolveLineStops(
+    { ...line, origin: line.destination, destination: line.origin },
+    idx,
+    [networkStops.find((s) => s.id === "X")!],
+  );
+  expect(result.directionMatched).toBe(false);
+  expect(result.note).toMatch(/único itinerário/);
+  expect(result.stops.map((s) => s.id)).toEqual(["A", "X", "D"]);
+});
+it("usa paradas distintas como evidência entre dois sentidos sem letreiro correspondente", () => {
+  const idx = index();
+  idx.data.trips[0].headsign = "Ida";
+  idx.data.trips[1].headsign = "Volta";
+  idx.data.trips[0].stopIds = ["A", "X"];
+  idx.data.trips[1].stopIds = ["D", "X"];
+  const result = resolveLineStops(
+    { ...line, origin: "Outro", destination: "Outro destino" },
+    idx,
+    [networkStops.find((s) => s.id === "D")!],
+  );
+  expect(result.directionMatched).toBe(true);
+  expect(result.stops.map((s) => s.id)).toEqual(["D", "X"]);
+});
 it("preserva a referência GTFS quando a API atualiza um ponto sem endereço", () => {
   const idx = index();
   idx.stops.byId.get("X")!.ref =

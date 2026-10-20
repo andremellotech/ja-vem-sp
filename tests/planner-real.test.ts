@@ -9,6 +9,34 @@ import {
 } from "../src/features/journey/data";
 import { findJourneys } from "../src/features/journey/router";
 import { resolveLineStops } from "../src/features/journey/line-stops";
+it("preserva todas as paradas de cada itinerário disponível no feed inteiro", () => {
+  const network = JSON.parse(rawNetwork);
+  const data = parsePlannerData(
+    JSON.parse(rawPlanner),
+    network.provenance.sha256,
+  );
+  const idx = createPlannerIndex(data, parseNetwork(network)!);
+  for (const trip of data.trips) {
+    const route = idx.routes.get(trip.routeId)!;
+    const result = resolveLineStops(
+      {
+        id: trip.id,
+        code: route.code,
+        name: route.name,
+        origin: "Origem não informada",
+        destination: trip.headsign,
+        direction: 1,
+      },
+      idx,
+      [],
+    );
+    expect(result.directionMatched, trip.id).toBe(true);
+    expect(
+      result.stops.map((s) => s.id),
+      trip.id,
+    ).toEqual([...new Set(trip.stopIds)]);
+  }
+});
 it("calcula opções no feed oficial completo com referências consistentes", () => {
   const network = JSON.parse(rawNetwork);
   const data = parsePlannerData(

@@ -100,7 +100,7 @@ export function resolveLineStops(
     );
     if (opposite) selected = candidates.find((g) => g !== opposite)!;
   }
-  if (!selected && api.length)
+  if (!selected && candidates.length > 1 && api.length)
     selected = bestBy((group) => {
       const ids = new Set(group.flatMap((t) => t.stopIds));
       return api.filter((s) => ids.has(s.id)).length;
