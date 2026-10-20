@@ -39,8 +39,8 @@ Dos 22.057 pontos usados pelos itinerários de ônibus, 1.277 não têm referên
 
 O site ainda não contempla tudo que seria necessário para uma viagem confirmada em tempo real:
 
-- As frequências foram verificadas no ZIP, mas não são importadas nem usadas para filtrar opções por hora de operação. O planejador considera o dia de serviço e apresenta itinerários cadastrados; a presença de uma opção não garante ônibus circulando naquele horário.
-- Os traçados existem na fonte, mas o mapa exibe pontos, sem desenhar a geometria do percurso.
+- As 39.846 janelas foram importadas em `schedules.json` e conferidas integralmente contra o ZIP, sem registros ausentes ou alterados; os calendários e o hash correspondem ao planejador. São exibidas como faixas e intervalos, sem partidas exatas (`exact_times=1` ausente) e sem filtrar opções por hora de operação. O planejador considera o dia de serviço e apresenta itinerários cadastrados; a presença de uma opção não garante ônibus circulando naquele horário.
+- As 98.710 ocorrências de pontos foram comparadas com seus traçados de origem; nenhuma ficou a mais de 300 m. Isso comprova consistência com a mesma fonte, não posição física ou operação atual. O mapa exibe pontos, sem desenhar a geometria do percurso.
 - Posições e previsões dependem do retorno ao vivo da SPTrans; não há garantia de cobertura para todas as linhas e pontos.
 - Os sentidos não confirmados e as linhas sem viagens precisam de associação ou fonte oficial adicional para fechar a cobertura cadastral.
 - Desvios temporários, feriados e cada ponto físico exigem atualização operacional adicional. A validade do calendário até 01/05/2027 não garante que todo o cadastro permaneça atual até essa data.
@@ -58,3 +58,5 @@ Uma regressão reproduziu a confirmação indevida antes da correção e passou 
 Os resultados detalhados, o exportador do resolvedor e o script de comparação foram preservados nos arquivos locais de entrega, sem credenciais, APKs ou endereços particulares.
 
 Validação da entrega: 95 testes da aplicação e 8 do importador passaram; typecheck e build concluíram. A revisão independente não encontrou problemas relevantes. O build mantém dois avisos já existentes do empacotador sobre diretivas `use client` no pacote lucide-react; não impediram a geração dos arquivos. Os filtros por linha e por situação foram conferidos no navegador.
+
+Atualização de busca e programação: o catálogo de 2.698 sentidos alimenta sugestões locais, e os três modos incluem proximidade por ônibus/calendário, priorização de caminhada e programação por intervalos. A digitação de endereços consulta Photon após três caracteres e 600 ms de pausa; endereços e GPS permanecem somente em memória. As duas consultas independentes ao endpoint público de partidas exatas retornaram HTTP 403; o site oferece links oficiais por código.

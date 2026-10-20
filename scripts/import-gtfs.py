@@ -8,7 +8,7 @@ Uso:
 Não faz downloads. Linhas inválidas são ignoradas e contadas no relatório;
 o arquivo gerado fica pequeno o bastante para ser carregado pelo navegador.
 """
-import argparse, csv, hashlib, io, json, math, zipfile
+import argparse, csv, hashlib, io, json, math, re, zipfile
 from pathlib import Path
 from datetime import datetime
 
@@ -155,6 +155,45 @@ def convert_planner(source, stops_data, provenance):
     return dict(version=1, provenance=dict(provenance), validFrom=min(dates), validTo=max(dates), routes=routes, trips=trips, calendars=calendars, exceptions=exceptions)
 
 
+def convert_schedules(source, planner):
+    """Preserva frequências; não expande intervalos em partidas exatas."""
+    def seconds(value):
+        if not isinstance(value, str) or not re.fullmatch(r"\d+:[0-5]\d:[0-5]\d", value):
+            raise ValueError("Horário de frequência inválido")
+        h, m, s = map(int, value.split(":"))
+        result = h * 3600 + m * 60 + s
+        if result > 2**53 - 1:
+            raise ValueError("Horário de frequência excede inteiro seguro")
+        return result
+
+    trips = {t["id"]: {k: t[k] for k in ("id", "routeId", "headsign", "direction", "serviceId")} | {"windows": []} for t in planner["trips"]}
+    with zipfile.ZipFile(source) as z:
+        all_trips = {t["trip_id"] for t in _rows(z, "trips.txt")}
+        for row in _rows(z, "frequencies.txt"):
+            tid = row.get("trip_id")
+            if tid not in all_trips:
+                raise ValueError("Frequência referencia viagem inexistente")
+            if tid not in trips:
+                continue
+            start, end = seconds(row.get("start_time")), seconds(row.get("end_time"))
+            try:
+                headway = int(row.get("headway_secs", "0"))
+            except (TypeError, ValueError) as e:
+                raise ValueError("Intervalo de frequência inválido") from e
+            exact = row.get("exact_times") or "0"
+            if start >= end or headway <= 0 or headway > 2**53 - 1 or exact not in ("0", "1"):
+                raise ValueError("Faixa ou intervalo inválido")
+            trips[tid]["windows"].append(dict(start=start, end=end, headwayS=headway, exactTimes=exact == "1"))
+    for t in trips.values():
+        windows = sorted(t["windows"], key=lambda w: w["start"])
+        if not windows or any(b["start"] < a["end"] for a, b in zip(windows, windows[1:])):
+            raise ValueError("Programação ausente ou sobreposta: " + t["id"])
+        if len({w["exactTimes"] for w in windows}) != 1:
+            raise ValueError("Tipos de frequência incompatíveis")
+        t["windows"] = windows
+    return {k: planner[k] for k in ("version", "provenance", "validFrom", "validTo", "calendars", "exceptions")} | {"trips": list(trips.values())}
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("source", type=Path)
@@ -163,6 +202,7 @@ def main():
     p.add_argument("--retrieved-at", required=True)
     p.add_argument("--license", required=True)
     p.add_argument("--planner-output", type=Path)
+    p.add_argument("--schedules-output", type=Path)
     a = p.parse_args()
     data = convert(a.source)
     with a.source.open("rb") as f:
@@ -174,14 +214,19 @@ def main():
         "sha256": digest,
         "limitations": "Dados estáticos de paradas. Sem posições nem previsões em tempo real.",
     }
-    planner = convert_planner(a.source, data, data["provenance"]) if a.planner_output else None
+    planner = convert_planner(a.source, data, data["provenance"]) if a.planner_output or a.schedules_output else None
+    schedules = convert_schedules(a.source, planner) if a.schedules_output else None
     a.output.parent.mkdir(parents=True, exist_ok=True)
     a.output.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"{len(data['stops'])} paradas gravadas em {a.output} ({a.output.stat().st_size/1e6:.2f} MB); ignoradas: {data['skipped']}")
-    if planner is not None:
+    if a.planner_output is not None:
         a.planner_output.parent.mkdir(parents=True, exist_ok=True)
         a.planner_output.write_text(json.dumps(planner, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         print(f"{len(planner['routes'])} rotas de ônibus e {len(planner['trips'])} viagens gravadas em {a.planner_output}")
+    if a.schedules_output is not None:
+        a.schedules_output.parent.mkdir(parents=True, exist_ok=True)
+        a.schedules_output.write_text(json.dumps(schedules, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        print(f"{len(schedules['trips'])} itinerários com programação gravados em {a.schedules_output}")
 
 
 if __name__ == "__main__":

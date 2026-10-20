@@ -133,3 +133,21 @@ it("considera calendário, exceções e validade no dia de São Paulo", () => {
     }),
   ).toThrow(/atualiza/i);
 });
+it("ordena por caminhada antes de limitar seis, mesmo quando a troca aparece depois das diretas", () => {
+  const away = {
+    ...networkStops[0],
+    id: "B",
+    lat: networkStops[0].lat + 0.004,
+  };
+  const trips = [
+    ...Array.from({ length: 7 }, (_, i) => trip("direct" + i, ["B", "D"])),
+    trip("first", ["A", "X"]),
+    trip("last", ["X", "D"]),
+  ];
+  const index = createPlannerIndex(fixture(trips), [...networkStops, away]);
+  expect(findJourneys(index, input).options[0].transferCount).toBe(0);
+  const walked = findJourneys(index, { ...input, criterion: "walking" });
+  expect(walked.options).toHaveLength(6);
+  expect(walked.options[0].transferCount).toBe(1);
+  expect(walked.options[0].accessM).toBe(0);
+});

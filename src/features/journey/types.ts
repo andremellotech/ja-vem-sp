@@ -47,6 +47,7 @@ export type PlanInput = {
   destination: Point;
   serviceDate: string;
   radiusM: 800 | 1200;
+  criterion?: "transfers" | "walking";
 };
 export type JourneyLeg = {
   tripId: string;

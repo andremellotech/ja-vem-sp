@@ -78,7 +78,7 @@ function install(fleetFailure = false) {
 }
 async function openLine() {
   render(<App apiBase="https://api.test" />);
-  fireEvent.click(screen.getByRole("button", { name: "Linhas e paradas" }));
+  fireEvent.click(screen.getByRole("button", { name: "Linhas e horários" }));
   fireEvent.change(screen.getByLabelText("Linha ou destino"), {
     target: { value: "8000" },
   });
@@ -105,4 +105,16 @@ it("mantém todas as paradas disponíveis mesmo quando a consulta de veículos f
   await screen.findByRole("button", { name: "Troca" });
   expect(screen.getByText("3 paradas")).toBeTruthy();
   expect(screen.getByText("Frota indisponível agora")).toBeTruthy();
+});
+it("mostra paradas GTFS enquanto a frota ainda aguarda resposta", async () => {
+  install();
+  const original = globalThis.fetch;
+  vi.stubGlobal("fetch", (input: string, init?: RequestInit) =>
+    input.includes("/vehicles")
+      ? new Promise<Response>(() => {})
+      : original(input, init),
+  );
+  await openLine();
+  await screen.findByRole("button", { name: "Troca" });
+  expect(screen.getByText("3 paradas")).toBeTruthy();
 });

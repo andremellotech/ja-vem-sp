@@ -80,7 +80,7 @@ function installApi(
 }
 async function openLine() {
   render(<App apiBase="https://api.test" />);
-  fireEvent.click(screen.getByRole("button", { name: "Linhas e paradas" }));
+  fireEvent.click(screen.getByRole("button", { name: "Linhas e horários" }));
   fireEvent.change(screen.getByLabelText("Linha ou destino"), {
     target: { value: "8000" },
   });
@@ -157,7 +157,7 @@ it("encontra o outro sentido ao abrir uma linha salva sem resultados de busca", 
   saveFavorites(localStorage, [outward.id]);
   saveFavoriteLines(localStorage, [outward]);
   render(<App apiBase="https://api.test" />);
-  fireEvent.click(screen.getByRole("button", { name: "Linhas e paradas" }));
+  fireEvent.click(screen.getByRole("button", { name: "Linhas e horários" }));
   fireEvent.click(screen.getByRole("button", { name: /^Favoritos/ }));
   fireEvent.click(
     screen.getByRole("button", { name: /8000-10.*Centro.*sentido 1/ }),
@@ -214,7 +214,7 @@ it("distingue frota em carregamento de frota sem veículos", async () => {
       }),
   });
   render(<App apiBase="https://api.test" />);
-  fireEvent.click(screen.getByRole("button", { name: "Linhas e paradas" }));
+  fireEvent.click(screen.getByRole("button", { name: "Linhas e horários" }));
   fireEvent.change(screen.getByLabelText("Linha ou destino"), {
     target: { value: "8000" },
   });
@@ -259,7 +259,7 @@ it("encerra a indicação de carregamento quando a consulta da frota falha", asy
       ),
   });
   render(<App apiBase="https://api.test" />);
-  fireEvent.click(screen.getByRole("button", { name: "Linhas e paradas" }));
+  fireEvent.click(screen.getByRole("button", { name: "Linhas e horários" }));
   fireEvent.change(screen.getByLabelText("Linha ou destino"), {
     target: { value: "8000" },
   });

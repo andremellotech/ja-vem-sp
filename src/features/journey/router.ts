@@ -33,6 +33,11 @@ export function findJourneys(
       "INVALID_DATA",
       "Os pontos do trajeto são inválidos. Confirme os dois endereços.",
     );
+  const compare =
+    input.criterion === "walking"
+      ? (a: JourneyOption, b: JourneyOption) =>
+          a.accessM + a.egressM - (b.accessM + b.egressM) || rank(a, b)
+      : rank;
   const services = activeServices(index.data, input.serviceDate);
   const active = new Set(
     index.data.trips.flatMap((t, i) => (services.has(t.serviceId) ? [i] : [])),
@@ -115,7 +120,7 @@ export function findJourneys(
       stopCount: legs.reduce((n, l) => n + l.stopCount, 0),
     };
     const previous = best.get(id);
-    if (!previous || rank(next, previous) < 0) best.set(id, next);
+    if (!previous || compare(next, previous) < 0) best.set(id, next);
   }
   for (const start of origins) {
     const accessM = distanceM(
@@ -141,7 +146,7 @@ export function findJourneys(
       }
     }
   }
-  const options = [...best.values()].sort(rank).slice(0, 6);
+  const options = [...best.values()].sort(compare).slice(0, 6);
   return {
     options,
     radiusM: input.radiusM,

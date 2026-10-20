@@ -17,20 +17,20 @@ afterEach(() => {
 });
 export async function confirmEndpoints() {
   fireEvent.change(
-    screen.getByRole("textbox", { name: "De onde você vai sair?" }),
+    screen.getByRole("combobox", { name: "De onde você vai sair?" }),
     { target: { value: "Rua Origem, 1000" } },
   );
   fireEvent.click(screen.getByRole("button", { name: "Localizar origem" }));
   fireEvent.click(
-    await screen.findByRole("button", { name: /^Rua Origem, 1000/ }),
+    await screen.findByRole("option", { name: /^Rua Origem, 1000/ }),
   );
   fireEvent.change(
-    screen.getByRole("textbox", { name: "Para onde você vai?" }),
+    screen.getByRole("combobox", { name: "Para onde você vai?" }),
     { target: { value: "Rua Destino, 1000" } },
   );
   fireEvent.click(screen.getByRole("button", { name: "Localizar destino" }));
   fireEvent.click(
-    await screen.findByRole("button", { name: /^Rua Destino, 1000/ }),
+    await screen.findByRole("option", { name: /^Rua Destino, 1000/ }),
   );
 }
 it("exige dois pontos, calcula opções e invalida ao editar", async () => {
@@ -62,7 +62,7 @@ it("exige dois pontos, calcula opções e invalida ao editar", async () => {
   expect(screen.getByText(/Distâncias em linha reta/)).toBeTruthy();
   expect(screen.getAllByText(/1 troca/).length).toBeGreaterThan(0);
   fireEvent.change(
-    screen.getByRole("textbox", { name: "De onde você vai sair?" }),
+    screen.getByRole("combobox", { name: "De onde você vai sair?" }),
     { target: { value: "Outra origem" } },
   );
   expect(
@@ -85,14 +85,14 @@ it("inverte os dois pontos confirmados", async () => {
   );
   expect(
     (
-      screen.getByRole("textbox", {
+      screen.getByRole("combobox", {
         name: "De onde você vai sair?",
       }) as HTMLInputElement
     ).value,
   ).toContain("Rua Destino");
   expect(
     (
-      screen.getByRole("textbox", {
+      screen.getByRole("combobox", {
         name: "Para onde você vai?",
       }) as HTMLInputElement
     ).value,
@@ -135,12 +135,12 @@ it("não aplica resultado antigo após nova consulta", async () => {
   await confirmEndpoints();
   fireEvent.click(screen.getByRole("button", { name: "Ver opções de ônibus" }));
   fireEvent.change(
-    screen.getByRole("textbox", { name: "Para onde você vai?" }),
+    screen.getByRole("combobox", { name: "Para onde você vai?" }),
     { target: { value: "Rua Destino, 1000" } },
   );
   fireEvent.click(screen.getByRole("button", { name: "Localizar destino" }));
   fireEvent.click(
-    await screen.findByRole("button", { name: /^Rua Destino, 1000/ }),
+    await screen.findByRole("option", { name: /^Rua Destino, 1000/ }),
   );
   fireEvent.click(screen.getByRole("button", { name: "Ver opções de ônibus" }));
   await act(async () => {
@@ -171,13 +171,13 @@ it("permite digitar com GPS recusado e ignora GPS que chega após edição", asy
     screen.getByRole("button", { name: "Usar minha localização como origem" }),
   );
   fireEvent.change(
-    screen.getByRole("textbox", { name: "De onde você vai sair?" }),
+    screen.getByRole("combobox", { name: "De onde você vai sair?" }),
     { target: { value: "Origem digitada" } },
   );
   await act(async () => finish(networkStops[0]));
   expect(
     (
-      screen.getByRole("textbox", {
+      screen.getByRole("combobox", {
         name: "De onde você vai sair?",
       }) as HTMLInputElement
     ).value,
@@ -187,4 +187,57 @@ it("permite digitar com GPS recusado e ignora GPS que chega após edição", asy
   );
   await act(async () => finish(null));
   expect(screen.getByText(/Digite o endereço de origem/)).toBeTruthy();
+});
+it("reutiliza GPS disponível para origem vazia e permite confirmar somente destino", async () => {
+  const { workers } = installJourneyMocks();
+  render(
+    <JourneyPlanner
+      deviceLocation={networkStops[0]}
+      onMapSelection={() => {}}
+      onShowArrivals={() => {}}
+      onLocate={async () => null}
+    />,
+  );
+  expect(
+    (
+      screen.getByRole("combobox", {
+        name: "De onde você vai sair?",
+      }) as HTMLInputElement
+    ).value,
+  ).toBe("Minha localização");
+  fireEvent.change(
+    screen.getByRole("combobox", { name: "Para onde você vai?" }),
+    { target: { value: "Rua Destino, 1000" } },
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Localizar destino" }));
+  fireEvent.click(
+    await screen.findByRole("option", { name: /^Rua Destino, 1000/ }),
+  );
+  fireEvent.change(screen.getByLabelText("Priorizar"), {
+    target: { value: "walking" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Ver opções de ônibus" }));
+  await screen.findByRole("button", { name: "Ver opção 1 no mapa" });
+  expect(workers[0].jobs[0].input.criterion).toBe("walking");
+});
+it("não substitui origem manual quando GPS compartilhado chega depois", () => {
+  installJourneyMocks();
+  const props = {
+    onMapSelection: () => {},
+    onShowArrivals: () => {},
+    onLocate: async () => null,
+  };
+  const { rerender } = render(<JourneyPlanner {...props} />);
+  fireEvent.change(
+    screen.getByRole("combobox", { name: "De onde você vai sair?" }),
+    { target: { value: "Origem manual" } },
+  );
+  rerender(<JourneyPlanner {...props} deviceLocation={networkStops[0]} />);
+  expect(
+    (
+      screen.getByRole("combobox", {
+        name: "De onde você vai sair?",
+      }) as HTMLInputElement
+    ).value,
+  ).toBe("Origem manual");
 });

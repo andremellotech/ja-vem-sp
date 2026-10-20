@@ -1,3 +1,4 @@
+import { fixture, hash, trip } from "./planner-fixtures";
 import React from "react";
 import { it, expect, vi, afterEach } from "vitest";
 import {
@@ -20,7 +21,7 @@ afterEach(() => {
 });
 it("explica configuração ausente sem simular chegadas", async () => {
   render(<App apiBase="" />);
-  fireEvent.click(screen.getByRole("button", { name: "Linhas e paradas" }));
+  fireEvent.click(screen.getByRole("button", { name: "Linhas e horários" }));
   expect(screen.getAllByText(/conectar dados/i).length).toBeGreaterThan(0);
   fireEvent.change(screen.getByLabelText("Linha ou destino"), {
     target: { value: "Paulista" },
@@ -56,7 +57,7 @@ it("mantém a última busca quando respostas chegam fora de ordem", async () => 
     }),
   );
   render(<App apiBase="https://api.test" />);
-  fireEvent.click(screen.getByRole("button", { name: "Linhas e paradas" }));
+  fireEvent.click(screen.getByRole("button", { name: "Linhas e horários" }));
   const input = screen.getByLabelText("Linha ou destino");
   fireEvent.change(input, { target: { value: "antiga" } });
   fireEvent.click(screen.getByRole("button", { name: "Buscar ônibus" }));
@@ -135,7 +136,7 @@ it("remove previsões quando sua própria atualização falha", async () => {
     }),
   );
   render(<App apiBase="https://api.test" />);
-  fireEvent.click(screen.getByRole("button", { name: "Linhas e paradas" }));
+  fireEvent.click(screen.getByRole("button", { name: "Linhas e horários" }));
   fireEvent.change(screen.getByLabelText("Linha ou destino"), {
     target: { value: "675K" },
   });
@@ -196,7 +197,7 @@ it("mostra paradas encontradas na busca e consulta chegadas de todas as linhas",
     }),
   );
   render(<App apiBase="https://api.test" />);
-  fireEvent.click(screen.getByRole("button", { name: "Linhas e paradas" }));
+  fireEvent.click(screen.getByRole("button", { name: "Linhas e horários" }));
   fireEvent.change(screen.getByLabelText("Linha ou destino"), {
     target: { value: "Paulista" },
   });
@@ -231,11 +232,14 @@ it("lista paradas do GTFS perto de você e consulta chegadas de todas as linhas"
       if (input.includes("health")) return Response.json({ configured: true });
       if (input.includes("data/stops.json"))
         return Response.json({
+          provenance: { sha256: hash },
           stops: [
             ["10", "Parada Perto", "Ref.: Praça", -23.5617, -46.6563, 0],
             ["11", "Parada Longe", "", -23.7, -46.8, 0],
           ],
         });
+      if (input.includes("data/planner.json"))
+        return Response.json(fixture([trip("675K-10", ["10", "11"])]));
       if (input.includes("/arrivals")) {
         arrivalUrls.push(input);
         return result([
@@ -255,9 +259,15 @@ it("lista paradas do GTFS perto de você e consulta chegadas de todas as linhas"
     }),
   );
   render(<App apiBase="https://api.test" />);
-  fireEvent.click(screen.getByRole("button", { name: "Linhas e paradas" }));
-  fireEvent.click(screen.getByRole("button", { name: "Minha localização" }));
-  fireEvent.click(await screen.findByRole("button", { name: /Parada Perto/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Perto de mim" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Usar minha localização" }),
+  );
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: /Parada Perto.*Ver chegadas nesta parada/,
+    }),
+  );
   await screen.findByText("12:05");
   expect(screen.queryByText("Parada Longe")).toBeNull();
   expect(arrivalUrls[0]).toContain("/api/stops/10/arrivals");

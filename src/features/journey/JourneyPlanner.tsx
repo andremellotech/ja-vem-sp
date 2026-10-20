@@ -24,6 +24,7 @@ type Props = {
   onLocate: () => Promise<Point | null>;
   onShowMap?: () => void;
   active?: boolean;
+  deviceLocation?: Point | null;
 };
 export default function JourneyPlanner({
   onMapSelection,
@@ -31,6 +32,7 @@ export default function JourneyPlanner({
   onLocate,
   onShowMap,
   active = true,
+  deviceLocation,
 }: Props) {
   const [originText, setOriginText] = useState(""),
     [destinationText, setDestinationText] = useState("");
@@ -42,6 +44,20 @@ export default function JourneyPlanner({
     [error, setError] = useState("");
   const [result, setResult] = useState<PlannerResult | null>(null),
     [selectedId, setSelectedId] = useState<string | null>(null);
+  const [criterion, setCriterion] = useState<"transfers" | "walking">(
+    "transfers",
+  );
+  useEffect(() => {
+    if (!active || !deviceLocation || origin || originText.trim()) return;
+    setOrigin({
+      ...deviceLocation,
+      id: "device",
+      label: "Minha localização",
+      source: "device",
+      approximate: false,
+    });
+    setOriginText("Minha localização");
+  }, [deviceLocation?.lat, deviceLocation?.lon, active]);
   const client = useRef<ReturnType<typeof createPlannerClient> | null>(null),
     controller = useRef<AbortController | null>(null),
     generation = useRef(0),
@@ -151,6 +167,7 @@ export default function JourneyPlanner({
           destination: { lat: destination.lat, lon: destination.lon },
           serviceDate: serviceDateInSaoPaulo(new Date()),
           radiusM,
+          criterion,
         },
         c.signal,
       );
@@ -175,7 +192,8 @@ export default function JourneyPlanner({
     <section className="journey-planner" aria-label="Planejar trajeto">
       <div className="journey-form">
         <p className="address-privacy">
-          Ao localizar um endereço, a busca é enviada ao{" "}
+          Ao digitar pelo menos três caracteres ou clicar em localizar, a busca
+          é enviada ao{" "}
           <a
             href="https://github.com/komoot/photon"
             target="_blank"
@@ -186,6 +204,7 @@ export default function JourneyPlanner({
           . Os endereços não são salvos pelo site.
         </p>
         <AddressField
+          active={active}
           id="origin"
           label="De onde você vai sair?"
           value={originText}
@@ -236,6 +255,7 @@ export default function JourneyPlanner({
           </p>
         )}
         <AddressField
+          active={active}
           id="destination"
           label="Para onde você vai?"
           value={destinationText}
@@ -251,6 +271,20 @@ export default function JourneyPlanner({
             setDestinationText(place.label);
           }}
         />
+        <label className="journey-priority" htmlFor="journey-priority">
+          Priorizar
+          <select
+            id="journey-priority"
+            value={criterion}
+            onChange={(e) => {
+              resetPlan();
+              setCriterion(e.target.value as "transfers" | "walking");
+            }}
+          >
+            <option value="transfers">Menos trocas</option>
+            <option value="walking">Menos caminhada</option>
+          </select>
+        </label>
         <button
           type="button"
           className="journey-submit"
@@ -262,7 +296,11 @@ export default function JourneyPlanner({
           <ArrowRight size={18} />
         </button>
         <p className="journey-search-note">
-          Ônibus de São Paulo · diretos e até uma troca · paradas em até 800 m.
+          Ônibus de São Paulo · diretos e até uma troca · paradas em até 800 m.{" "}
+          {criterion === "walking"
+            ? "Menor caminhada, depois menos trocas e menos paradas."
+            : "Menos trocas, depois menor caminhada e menos paradas."}{" "}
+          Não estimamos o menor tempo de viagem.
         </p>
       </div>
       <div className="journey-result-state" aria-live="polite">

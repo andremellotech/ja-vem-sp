@@ -1,10 +1,4 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   ArrowLeftRight,
@@ -38,13 +32,12 @@ import {
 import TransitMap from "./features/map/TransitMap";
 import StopPicker from "./features/stops/StopPicker";
 import JourneyPlanner from "./features/journey/JourneyPlanner";
+import LineSearch from "./features/lines/LineSearch";
+import NearbyTransit from "./features/nearby/NearbyTransit";
+import LineSchedule from "./features/schedules/LineSchedule";
 import type { JourneyMapSelection, Point } from "./features/journey/types";
 import { loadStopsForLine } from "./features/journey/line-stops";
-import {
-  distanceM,
-  loadNetwork,
-  type NetStopIndex,
-} from "./features/stops/network";
+import { loadNetwork, type NetStopIndex } from "./features/stops/network";
 import {
   loadFavorites,
   saveFavorites,
@@ -112,7 +105,7 @@ export default function App({
     }
   });
   const [view, setView] = useState<"list" | "map">("list");
-  const [mode, setMode] = useState<"journey" | "lines">("journey");
+  const [mode, setMode] = useState<"journey" | "nearby" | "lines">("journey");
   const [journeySelection, setJourneySelection] =
     useState<JourneyMapSelection | null>(null);
   const [lineLoading, setLineLoading] = useState(false);
@@ -194,7 +187,7 @@ export default function App({
     setView("list");
     setJourneySelection(null);
   }
-  function changeMode(next: "journey" | "lines") {
+  function changeMode(next: "journey" | "nearby" | "lines") {
     showTab("search");
     setMode(next);
   }
@@ -204,6 +197,28 @@ export default function App({
     setFoundStops([selected]);
     setStop(selected.id);
     setJourneySelection(selection);
+  }
+  function editQuery(value: string) {
+    generation.current++;
+    searchController.current?.abort();
+    setBusy(false);
+    setStopsBusy(false);
+    setSwitching(false);
+    setSearched(false);
+    setError("");
+    setLines([]);
+    setFoundStops([]);
+    setLine(null);
+    setStops([]);
+    setVehicles([]);
+    setStop(null);
+    setJourneySelection(null);
+    setQuery(value);
+  }
+  function selectLine(selected: Line) {
+    editQuery(selected.code);
+    setLines([selected]);
+    setLine(selected);
   }
   const search = async (value = query) => {
     const q = value.trim();
@@ -282,44 +297,42 @@ export default function App({
       running = true;
       if (active) setLineLoading(true);
       try {
-        const [s, v] = await Promise.allSettled([
+        const issues: string[] = [];
+        const issue = (e: unknown, fallback: string) => {
+          if (!active || c.signal.aborted) return;
+          issues.push(e instanceof Error ? e.message : fallback);
+          setError(issues.join(" "));
+        };
+        await Promise.allSettled([
           stopsLoaded
-            ? null
-            : loadStopsForLine(selectedLine, staticBase, apiBase, c.signal),
+            ? Promise.resolve()
+            : loadStopsForLine(selectedLine, staticBase, apiBase, c.signal)
+                .then((s) => {
+                  if (!active) return;
+                  setStops(s.stops);
+                  setStopStatus("ready");
+                  setLineStopNote(s.note);
+                  stopsLoaded = s.source === "gtfs";
+                })
+                .catch((e) => {
+                  if (active) setStopStatus("error");
+                  issue(e, "As paradas estão indisponíveis.");
+                }),
           request<Vehicle[]>(
             apiBase,
             "/api/lines/" + id + "/vehicles",
             c.signal,
-          ),
+          )
+            .then((v) => {
+              if (!active) return;
+              setVehicles(v.data);
+              setUpdated(v.fetchedAt);
+              setObserved(v.observedAt);
+              setOnline(true);
+            })
+            .catch((e) => issue(e, "Não foi possível atualizar os veículos.")),
         ]);
-        if (active) {
-          const issues: string[] = [];
-          if (s.status === "fulfilled" && s.value) {
-            setStops(s.value.stops);
-            setStopStatus("ready");
-            setLineStopNote(s.value.note);
-            stopsLoaded = s.value.source === "gtfs";
-          } else if (s.status === "rejected") {
-            setStopStatus("error");
-            issues.push(
-              s.reason instanceof Error
-                ? s.reason.message
-                : "As paradas estão indisponíveis.",
-            );
-          }
-          if (v.status === "fulfilled") {
-            setVehicles(v.value.data);
-            setUpdated(v.value.fetchedAt);
-            setObserved(v.value.observedAt);
-            setOnline(true);
-          } else
-            issues.push(
-              v.reason instanceof Error
-                ? v.reason.message
-                : "Não foi possível atualizar os veículos.",
-            );
-          setError(issues.join(" "));
-        }
+        if (active) setError(issues.join(" "));
       } catch (e) {
         if (active && !c.signal.aborted)
           setError(
@@ -507,6 +520,7 @@ export default function App({
     );
   }
   const isJourney = mode === "journey" && tab === "search";
+  const isNearby = mode === "nearby" && tab === "search";
   const visibleLines =
     tab === "favorites"
       ? savedLines.filter((l) => favorites.includes(l.id))
@@ -515,16 +529,9 @@ export default function App({
   const selectedStop: { id: string; name: string } | undefined =
     mapStops.find((s) => s.id === stop) ??
     (stop ? network?.byId.get(stop) : undefined);
-  const nearby = useMemo(
-    () =>
-      network && location
-        ? network.nearest(location[0], location[1], 600, 8)
-        : [],
-    [network, location],
-  );
   const arrivalCard = selectedStop && (
     <div className="arrival-card">
-      <span className="eyebrow">CHEGADAS NESTA PARADA</span>
+      <span className="eyebrow">PREVISÕES AO VIVO NESTA PARADA</span>
       <h3>{selectedStop.name}</h3>
       {arrivals.length ? (
         arrivals.map((a, i) => (
@@ -618,7 +625,13 @@ export default function App({
         <button
           onClick={() => setView("list")}
           aria-pressed={view === "list"}
-          aria-controls={isJourney ? "journey-panel" : "line-panel"}
+          aria-controls={
+            isJourney
+              ? "journey-panel"
+              : isNearby
+                ? "nearby-panel"
+                : "line-panel"
+          }
         >
           <List size={18} /> Lista
         </button>
@@ -673,44 +686,54 @@ export default function App({
             </button>
             <button
               type="button"
-              aria-pressed={!isJourney}
+              aria-pressed={isNearby}
+              onClick={() => changeMode("nearby")}
+            >
+              Perto de mim
+            </button>
+            <button
+              type="button"
+              aria-pressed={mode === "lines" || tab === "favorites"}
               onClick={() => changeMode("lines")}
             >
-              Linhas e paradas
+              Linhas e horários
             </button>
           </div>
           <div className="journey-pane" id="journey-panel" hidden={!isJourney}>
             <JourneyPlanner
               active={isJourney}
+              deviceLocation={
+                location ? { lat: location[0], lon: location[1] } : null
+              }
               onMapSelection={setJourneySelection}
               onShowArrivals={showJourneyArrivals}
               onLocate={locate}
               onShowMap={() => setView("map")}
             />
           </div>
-          <div className="lines-pane" hidden={isJourney}>
-            <form
-              className="search-box"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void search();
+          <div className="nearby-pane" id="nearby-panel" hidden={!isNearby}>
+            <NearbyTransit
+              active={isNearby}
+              location={
+                location ? { lat: location[0], lon: location[1] } : null
+              }
+              onLocate={locate}
+              onSelectStop={(s) => showJourneyArrivals(s, null)}
+              onSelectLine={(code) => {
+                changeMode("lines");
+                void search(code);
               }}
-            >
-              <label htmlFor="line-search">PARA ONDE VOCÊ VAI?</label>
-              <div className="search-input">
-                <Search size={20} />
-                <input
-                  id="line-search"
-                  aria-label="Linha ou destino"
-                  placeholder="Linha, parada ou endereço"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                />
-                <button type="submit" aria-label="Buscar ônibus">
-                  <ArrowRight size={21} />
-                </button>
-              </div>
-            </form>
+              onStopsChange={setFoundStops}
+            />
+          </div>
+          <div className="lines-pane" hidden={isJourney || isNearby}>
+            <LineSearch
+              value={query}
+              onChange={editQuery}
+              onSubmit={() => void search()}
+              onSelect={selectLine}
+              active={!isJourney && !isNearby}
+            />
             <div className="quick-search">
               <span>Experimente</span>
               {["Paulista", "Pinheiros", "Lapa"].map((q) => (
@@ -827,6 +850,7 @@ export default function App({
                       {stale ? "· posições antigas" : ""}
                     </p>
                   )}
+                  <LineSchedule line={line} />
                   {arrivalCard}
                   {lineStopNote && (
                     <p className="line-stop-note">{lineStopNote}</p>
@@ -853,39 +877,6 @@ export default function App({
               ) : (
                 <>
                   {tab === "search" && arrivalCard}
-                  {tab === "search" && nearby.length > 0 && (
-                    <>
-                      <div className="guide-label">PARADAS PERTO DE VOCÊ</div>
-                      <div className="stop-list">
-                        {nearby.map((s) => (
-                          <button
-                            className={stop === s.id ? "stop selected" : "stop"}
-                            key={s.id}
-                            onClick={() => selectStop(s.id)}
-                          >
-                            <span className="stop-number">
-                              <MapPin size={12} />
-                            </span>
-                            <span>
-                              {s.name}
-                              <small style={{ display: "block" }}>
-                                {Math.round(
-                                  distanceM(
-                                    location![0],
-                                    location![1],
-                                    s.lat,
-                                    s.lon,
-                                  ),
-                                )}{" "}
-                                m{s.ref ? " · " + s.ref : ""}
-                              </small>
-                            </span>
-                            <ChevronRight size={16} />
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
                   {visibleLines.map((l) => (
                     <div className="line-result" key={l.id}>
                       <button
@@ -1199,8 +1190,16 @@ export default function App({
             )}
             <p>
               O mapa usa OpenStreetMap. Favoritos são salvos apenas neste
-              navegador. Rotas completas, metrô, trens e bilhetagem ainda não
-              estão integrados.
+              navegador. O planejador usa itinerários e calendários de ônibus,
+              com até uma troca; não garante operação ou conexão neste horário.
+              Metrô, trens e bilhetagem ainda não estão integrados.
+            </p>
+            <p>
+              As sugestões de endereço enviam sua digitação ao
+              Photon/OpenStreetMap após três caracteres e uma pausa. Endereços e
+              GPS não são salvos pelo site. A programação mostra faixas e
+              intervalos do GTFS, sem partidas exatas ou horários de passagem
+              por ponto; confira o link oficial de cada linha.
             </p>
             <a
               className="primary-link"

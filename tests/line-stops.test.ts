@@ -36,6 +36,7 @@ it("retorna todas as paradas GTFS no sentido correto mesmo com API vazia ou parc
   const result = resolveLineStops(line, idx, []);
   expect(result.stops.map((s) => s.id)).toEqual(["A", "X", "D"]);
   expect(result.directionMatched).toBe(true);
+  expect(result.tripIds).toEqual(["out"]);
   expect(
     resolveLineStops(line, idx, [networkStops[1]]).stops.map((s) => s.id),
   ).toEqual(["A", "X", "D"]);
@@ -50,6 +51,7 @@ it("retorna todas as paradas GTFS no sentido correto mesmo com API vazia ou parc
     [],
   );
   expect(reverse.stops.map((s) => s.id)).toEqual(["D", "X", "A"]);
+  expect(reverse.tripIds).toEqual(["back"]);
 });
 it("inclui variantes da mesma direção e paradas novas do fornecedor, sem pontos de outra linha", () => {
   const idx = index();
@@ -62,6 +64,7 @@ it("inclui variantes da mesma direção e paradas novas do fornecedor, sem ponto
   const result = resolveLineStops(line, idx, [newer]);
   expect(result.stops.map((s) => s.id)).toEqual(["A", "X", "D", "new"]);
   expect(result.stops.some((s) => s.id === "M")).toBe(false);
+  expect(result.tripIds).toEqual(["out", "variant"]);
 });
 it("não inventa correspondência de sentido quando a base é ambígua", () => {
   const idx = index();
@@ -75,6 +78,7 @@ it("não inventa correspondência de sentido quando a base é ambígua", () => {
   expect(result.directionMatched).toBe(false);
   expect(result.note).toMatch(/sentidos/i);
   expect(result.stops).toHaveLength(3);
+  expect(result.tripIds).toEqual(["out", "back"]);
 });
 it("identifica cobertura parcial quando não existe rota na base GTFS", () => {
   const result = resolveLineStops({ ...line, code: "9999-10" }, index(), [
@@ -82,6 +86,7 @@ it("identifica cobertura parcial quando não existe rota na base GTFS", () => {
   ]);
   expect(result.stops).toHaveLength(1);
   expect(result.source).toBe("api");
+  expect(result.tripIds).toEqual([]);
   expect(result.note).toMatch(/parciais/i);
 });
 it("não confirma sentido por uma parada compartilhada quando só há um itinerário", () => {

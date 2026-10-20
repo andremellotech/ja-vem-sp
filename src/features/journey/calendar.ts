@@ -11,7 +11,10 @@ export function serviceDateInSaoPaulo(now: Date): string {
     .map((type) => parts.find((p) => p.type === type)!.value)
     .join("");
 }
-export function activeServices(data: PlannerData, date: string): Set<string> {
+export function activeServices(
+  data: Pick<PlannerData, "validFrom" | "validTo" | "calendars" | "exceptions">,
+  date: string,
+): Set<string> {
   if (!validDate(date))
     throw new PlannerError("INVALID_DATA", "Data de serviço inválida.");
   if (date < data.validFrom || date > data.validTo)

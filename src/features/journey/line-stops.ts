@@ -12,6 +12,7 @@ export type LineStopResolution = {
   note: string;
   source: "gtfs" | "api";
   directionMatched: boolean;
+  tripIds?: string[];
 };
 const code = (s: string) =>
   s
@@ -72,6 +73,7 @@ export function resolveLineStops(
       note: "Esta linha não foi encontrada no GTFS. As paradas informadas pela SPTrans podem ser parciais.",
       source: "api",
       directionMatched: false,
+      tripIds: [],
     };
   const groups = new Map<string, typeof trips>();
   for (const t of trips) {
@@ -140,7 +142,13 @@ export function resolveLineStops(
     : groups.size === 1
       ? "Paradas do único itinerário cadastrado desta linha no GTFS. Confirme o sentido na parada."
       : "Paradas desta linha nos sentidos cadastrados no GTFS. A correspondência com o sentido selecionado não foi confirmada.";
-  return { stops: [...stops.values()], note, source: "gtfs", directionMatched };
+  return {
+    stops: [...stops.values()],
+    note,
+    source: "gtfs",
+    directionMatched,
+    tripIds: candidates.flatMap((group) => group.map((t) => t.id)),
+  };
 }
 const cache = new Map<string, Promise<PlannerIndex>>();
 export function loadLineIndex(base: string): Promise<PlannerIndex> {
@@ -207,6 +215,7 @@ export async function loadStopsForLine(
       note: "A base GTFS completa está indisponível. As paradas da SPTrans podem ser parciais. Tente atualizar novamente.",
       source: "api",
       directionMatched: false,
+      tripIds: [],
     };
   throw new PlannerError(
     "DATA_UNAVAILABLE",

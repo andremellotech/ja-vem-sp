@@ -2262,3 +2262,194 @@ code {
     line-height: 1.5;
   }
 }
+/* Local discovery and frequency programming share the existing transit palette. */
+.line-search,
+.nearby-transit,
+.line-schedule {
+  min-width: 0;
+}
+.line-suggestions {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  max-height: 330px;
+  overflow-y: auto;
+  margin-top: 8px;
+  background: #fff;
+}
+.line-suggestions button,
+.nearby-list button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  min-height: 48px;
+  padding: 12px;
+  overflow-wrap: anywhere;
+}
+.line-suggestions button + button,
+.nearby-list button + button {
+  border-top: 1px solid var(--line);
+}
+.line-suggestions small,
+.nearby-list small {
+  display: block;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #5d7253;
+  margin-top: 4px;
+}
+.line-suggestions strong,
+.nearby-list strong {
+  font-size: 13px;
+  line-height: 1.6;
+}
+.address-results button[aria-selected="true"],
+.line-suggestions button[aria-selected="true"] {
+  background: #e8f2cf;
+  box-shadow: inset 4px 0 #496c33;
+  color: #18392f;
+}
+.journey-priority {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+  margin: 18px 0 12px;
+}
+.journey-priority select {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  font: inherit;
+  color: inherit;
+  border: 1px solid #c7d5b6;
+  background: #fff;
+  border-radius: 8px;
+  padding: 8px;
+}
+select:focus-visible {
+  outline: 3px solid #cc9b35;
+  outline-offset: 3px;
+}
+.nearby-pane[hidden] {
+  display: none;
+}
+.nearby-transit h2 {
+  font-size: 20px;
+}
+.nearby-transit h3,
+.line-schedule h3 {
+  font-size: 16px;
+}
+.nearby-transit p,
+.line-schedule p {
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.nearby-locate,
+.nearby-expand,
+.nearby-transit [role="alert"] button {
+  min-height: 46px;
+  border: 1px solid #becfa7;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  margin: 8px 0;
+  background: #edf5df;
+}
+.nearby-list {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 10px;
+}
+.line-schedule {
+  margin: 18px 0;
+  padding: 16px;
+  border: 1px solid #dce5d2;
+  background: #f5f9ee;
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}
+.line-schedule h3 {
+  margin: 0 0 10px;
+}
+.line-schedule label,
+.line-schedule input,
+.line-schedule button {
+  font: inherit;
+  font-size: 12px;
+}
+.line-schedule input {
+  max-width: 100%;
+  min-height: 44px;
+  border: 1px solid #becfa7;
+  border-radius: 6px;
+  background: #fff;
+  color: inherit;
+  padding: 8px;
+}
+.line-schedule [role="group"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0;
+}
+.line-schedule button {
+  min-height: 44px;
+  padding: 8px 12px;
+  background: #fff;
+  border: 1px solid #becfa7;
+  border-radius: 6px;
+}
+.line-schedule table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 12px;
+}
+.line-schedule caption {
+  text-align: left;
+  padding: 8px 0;
+  line-height: 1.6;
+}
+.line-schedule th,
+.line-schedule td {
+  text-align: left;
+  padding: 9px 4px;
+  border-bottom: 1px solid #dce5d2;
+}
+.line-schedule th:first-child {
+  width: 63%;
+}
+.line-schedule h4 {
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 18px 0 4px;
+}
+@media (max-width: 740px) {
+  .journey-mode-switch button {
+    font-size: 12px;
+    padding: 10px 7px;
+    min-height: 48px;
+    flex: 1;
+    line-height: 1.4;
+  }
+  .journey-mode-switch {
+    gap: 2px;
+  }
+  .app-layout[data-view="map"] .nearby-pane {
+    display: none;
+  }
+  .sidebar,
+  .lines-pane,
+  .journey-pane,
+  .nearby-pane {
+    min-width: 0;
+  }
+  .line-schedule {
+    padding: 12px;
+  }
+  .line-schedule td {
+    font-size: 11px;
+  }
+}

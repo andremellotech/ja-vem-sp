@@ -43,12 +43,12 @@ async function endpoints() {
     ["De onde você vai sair?", "Rua Origem", "Localizar origem"],
     ["Para onde você vai?", "Rua Destino", "Localizar destino"],
   ]) {
-    fireEvent.change(screen.getByRole("textbox", { name: label }), {
+    fireEvent.change(screen.getByRole("combobox", { name: label }), {
       target: { value: term + ", 1000" },
     });
     fireEvent.click(screen.getByRole("button", { name: action }));
     fireEvent.click(
-      await screen.findByRole("button", {
+      await screen.findByRole("option", {
         name: new RegExp("^" + term + ", 1000"),
       }),
     );
@@ -58,7 +58,7 @@ it("abre o formulário por padrão e consulta todas as linhas ao escolher embarq
   const { arrivalUrls } = installJourneyMocks({ networkFailure: true });
   render(<App apiBase="https://api.test" />);
   expect(
-    screen.getByRole("textbox", { name: "De onde você vai sair?" }),
+    screen.getByRole("combobox", { name: "De onde você vai sair?" }),
   ).toBeTruthy();
   await endpoints();
   fireEvent.click(screen.getByRole("button", { name: "Ver opções de ônibus" }));
@@ -78,7 +78,7 @@ it("abre o formulário por padrão e consulta todas as linhas ao escolher embarq
   fireEvent.click(screen.getByRole("button", { name: "Trajeto" }));
   expect(
     (
-      screen.getByRole("textbox", {
+      screen.getByRole("combobox", {
         name: "De onde você vai sair?",
       }) as HTMLInputElement
     ).value,
@@ -87,9 +87,9 @@ it("abre o formulário por padrão e consulta todas as linhas ao escolher embarq
 it("mantém consulta de linhas acessível quando o geocodificador falha", async () => {
   installJourneyMocks();
   render(<App apiBase="https://api.test" />);
-  fireEvent.click(screen.getByRole("button", { name: "Linhas e paradas" }));
+  fireEvent.click(screen.getByRole("button", { name: "Linhas e horários" }));
   expect(
-    screen.getByRole("textbox", { name: "Linha ou destino" }),
+    screen.getByRole("combobox", { name: "Linha ou destino" }),
   ).toBeTruthy();
 });
 it("oculta paradas de pesquisas anteriores ao desenhar um trajeto", async () => {
@@ -108,7 +108,7 @@ it("oculta paradas de pesquisas anteriores ao desenhar um trajeto", async () => 
       : originalFetch(input),
   );
   render(<App apiBase="https://api.test" />);
-  fireEvent.click(screen.getByRole("button", { name: "Linhas e paradas" }));
+  fireEvent.click(screen.getByRole("button", { name: "Linhas e horários" }));
   fireEvent.change(screen.getByLabelText("Linha ou destino"), {
     target: { value: "Antiga" },
   });
@@ -164,4 +164,56 @@ it("chegadas de uma alternativa também selecionam as paradas dessa alternativa"
   expect(screen.getByLabelText("Pontos do trajeto no mapa").textContent).toBe(
     "alternativa,D",
   );
+});
+it("ignora linhas e paradas antigas assim que o texto da busca muda", async () => {
+  installJourneyMocks();
+  const original = globalThis.fetch;
+  let finishLines!: (r: Response) => void, finishStops!: (r: Response) => void;
+  const signals: AbortSignal[] = [];
+  vi.stubGlobal("fetch", (input: string, init?: RequestInit) => {
+    if (input.includes("/api/lines?q=")) {
+      signals.push(init!.signal!);
+      return new Promise<Response>((r) => {
+        finishLines = r;
+      });
+    }
+    if (input.includes("/api/stops?q="))
+      return new Promise<Response>((r) => {
+        finishStops = r;
+      });
+    return original(input, init);
+  });
+  render(<App apiBase="https://api.test" />);
+  fireEvent.click(screen.getByRole("button", { name: "Linhas e horários" }));
+  const input = screen.getByLabelText("Linha ou destino");
+  fireEvent.change(input, { target: { value: "antiga" } });
+  fireEvent.click(screen.getByRole("button", { name: "Buscar ônibus" }));
+  fireEvent.change(input, { target: { value: "nova" } });
+  expect(signals[0].aborted).toBe(true);
+  const result = (data: unknown) =>
+    Response.json({
+      data,
+      source: "SPTrans",
+      fetchedAt: new Date().toISOString(),
+      observedAt: null,
+    });
+  await act(async () => {
+    finishLines(
+      result([
+        {
+          id: "old",
+          code: "8000-10",
+          name: "Antiga",
+          origin: "Terminal",
+          destination: "Resultado antigo",
+          direction: 1,
+        },
+      ]),
+    );
+    finishStops(
+      result([{ ...networkStops[0], id: "old-stop", name: "Parada antiga" }]),
+    );
+  });
+  expect(screen.queryByRole("button", { name: /Resultado antigo/ })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Parada antiga" })).toBeNull();
 });
