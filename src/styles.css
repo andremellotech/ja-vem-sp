@@ -2722,6 +2722,38 @@ select:focus-visible {
 .journey-line-badges b {
   flex-wrap: wrap;
 }
+.address-localities {
+  margin-top: 10px;
+}
+.address-localities p {
+  margin: 0 0 7px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #52675d;
+}
+.address-localities .address-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 7px 9px;
+  border: 1px solid #c4d4ca;
+  border-radius: 7px;
+  background: #fff;
+  color: #285f50;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+.address-localities .address-scope[aria-pressed="true"] {
+  background: #e9f2eb;
+  border-color: #6f9482;
+}
+.address-localities .address-scope:focus-visible {
+  outline: 3px solid #dcad40;
+  outline-offset: 2px;
+}
 @media (max-width: 430px) {
   .journey-option-actions {
     flex-wrap: wrap;

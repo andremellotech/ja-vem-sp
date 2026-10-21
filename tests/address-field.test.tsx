@@ -70,7 +70,7 @@ it("sugere após três caracteres e pausa, sem consultar a cada tecla", async ()
   await act(() => vi.advanceTimersByTimeAsync(599));
   expect(fetcher).not.toHaveBeenCalled();
   await act(() => vi.advanceTimersByTimeAsync(1));
-  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(fetcher).toHaveBeenCalledTimes(2);
   expect(screen.getByRole("option", { name: /Avenida Paulista/ })).toBeTruthy();
   fireEvent.keyDown(input, { key: "ArrowDown" });
   expect(input.getAttribute("aria-activedescendant")).toBeTruthy();

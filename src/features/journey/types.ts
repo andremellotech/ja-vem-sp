@@ -5,6 +5,11 @@ export type Place = Point & {
   label: string;
   approximate: boolean;
   source: "photon" | "device";
+  city?: string;
+  district?: string;
+  locality?: string;
+  postcode?: string;
+  outsideCoverage?: boolean;
 };
 export type TransportMode = "bus" | "metro" | "train";
 export type Route = {
