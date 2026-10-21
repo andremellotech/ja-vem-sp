@@ -9,6 +9,9 @@ import {
 import type { Stop } from "../../contracts";
 import AddressField from "./AddressField";
 import JourneyOptions from "./JourneyOptions";
+import GoogleDirections from "./GoogleDirections";
+import GoogleEmbedPlanner from "../google-embed/GoogleEmbedPlanner";
+import type { GoogleEmbedSelection } from "../google-embed/types";
 import { createPlannerClient } from "./client";
 import { serviceDateInSaoPaulo } from "./calendar";
 import type {
@@ -25,6 +28,9 @@ type Props = {
   onShowMap?: () => void;
   active?: boolean;
   deviceLocation?: Point | null;
+  googleEmbedKey?: string;
+  onGoogleSelection?: (selection: GoogleEmbedSelection | null) => void;
+  onSearchBus?: (code: string) => void;
 };
 export default function JourneyPlanner({
   onMapSelection,
@@ -33,6 +39,9 @@ export default function JourneyPlanner({
   onShowMap,
   active = true,
   deviceLocation,
+  googleEmbedKey = "",
+  onGoogleSelection,
+  onSearchBus,
 }: Props) {
   const [originText, setOriginText] = useState(""),
     [destinationText, setDestinationText] = useState("");
@@ -70,6 +79,7 @@ export default function JourneyPlanner({
     setResult(null);
     setSelectedId(null);
     onMapSelection(null);
+    onGoogleSelection?.(null);
   }
   function cancelGps() {
     gpsGeneration.current++;
@@ -78,6 +88,7 @@ export default function JourneyPlanner({
   }
   function choose(option: JourneyOption) {
     if (!origin || !destination) return;
+    onGoogleSelection?.(null);
     setSelectedId(option.id);
     const stops = [
       ...new Map(
@@ -94,6 +105,7 @@ export default function JourneyPlanner({
   }
   useEffect(() => {
     if (!active) {
+      onGoogleSelection?.(null);
       generation.current++;
       gpsGeneration.current++;
       controller.current?.abort();
@@ -101,9 +113,7 @@ export default function JourneyPlanner({
       client.current = null;
       setBusy(false);
       setLocating(false);
-    } else {
-      const selected = result?.options.find((o) => o.id === selectedId);
-      if (selected) choose(selected);
+      setSelectedId(null);
     }
   }, [active]);
   useEffect(
@@ -302,6 +312,21 @@ export default function JourneyPlanner({
             : "Menos trocas, depois menor caminhada e menos paradas."}{" "}
           Não estimamos o menor tempo de viagem.
         </p>
+        {active && origin && destination && onGoogleSelection && (
+          <GoogleEmbedPlanner
+            origin={origin}
+            destination={destination}
+            apiKey={googleEmbedKey}
+            onSelection={onGoogleSelection}
+            onBegin={() => {
+              cancelGps();
+              resetPlan();
+            }}
+            onShowMap={onShowMap}
+            onSearchBus={onSearchBus}
+          />
+        )}
+        <GoogleDirections origin={origin} destination={destination} />
       </div>
       <div className="journey-result-state" aria-live="polite">
         {busy && (
@@ -342,6 +367,8 @@ export default function JourneyPlanner({
       {!!result?.options.length && (
         <JourneyOptions
           options={result.options}
+          origin={origin}
+          destination={destination}
           selectedId={selectedId}
           onSelect={(option) => {
             choose(option);
