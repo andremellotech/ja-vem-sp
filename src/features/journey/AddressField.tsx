@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { Check, MapPin, Search, X } from "lucide-react";
-import { searchAddresses } from "./geocoder";
+import { Check, Globe2, MapPin, Search, X } from "lucide-react";
+import { searchAddresses, type AddressScope } from "./geocoder";
 import type { Place } from "./types";
 type Props = {
   label: string;
@@ -38,6 +38,7 @@ export default function AddressField({
     [open, setOpen] = useState(false),
     [highlighted, setHighlighted] = useState(-1),
     [composing, setComposing] = useState(false);
+  const [scope, setScope] = useState<AddressScope>("region");
   function cancel() {
     clearTimeout(timer.current);
     generation.current++;
@@ -62,7 +63,7 @@ export default function AddressField({
     if (active && !selected && !composing && value.trim().length >= 3)
       schedule();
     return cancel;
-  }, [value, selected, active, composing]);
+  }, [value, selected, active, composing, scope]);
   useEffect(
     () => () => {
       cancel();
@@ -84,13 +85,13 @@ export default function AddressField({
     setSearched(true);
     setOpen(false);
     setHighlighted(-1);
-    const key = `${endpoint ?? "default"}:${value.trim().toLocaleLowerCase("pt-BR")}`;
+    const key = `${endpoint ?? "default"}:${scope}:${value.trim().toLocaleLowerCase("pt-BR")}`;
     try {
       const saved = cache.current.get(key);
       const found =
         saved && Date.now() - saved.at < 300000
           ? saved.places
-          : await searchAddresses(value, c.signal, endpoint);
+          : await searchAddresses(value, c.signal, endpoint, scope);
       if (
         activeRef.current &&
         current === generation.current &&
@@ -119,7 +120,7 @@ export default function AddressField({
     setBusy(false);
     setOpen(false);
     setHighlighted(-1);
-    if (place.approximate) setPending(place);
+    if (place.approximate || place.outsideCoverage) setPending(place);
     else onSelect(place);
   }
   useEffect(() => {
@@ -250,6 +251,30 @@ export default function AddressField({
           Consultando endereços…
         </p>
       )}
+      {!selected && (
+        <div className="address-localities">
+          <p>
+            Ruas com o mesmo nome? Informe também bairro, cidade ou CEP.{" "}
+            {scope === "region"
+              ? "Busca em São Paulo e arredores."
+              : "Busca em todo o Brasil."}
+          </p>
+          <button
+            type="button"
+            className="address-scope"
+            aria-pressed={scope === "all"}
+            onClick={() => {
+              invalidate();
+              setScope(scope === "region" ? "all" : "region");
+            }}
+          >
+            <Globe2 size={14} />{" "}
+            {scope === "region"
+              ? "Incluir outras cidades"
+              : "Limitar a São Paulo e arredores"}
+          </button>
+        </div>
+      )}
       {error && (
         <div className="address-error" role="alert">
           <p>{error}</p>
@@ -282,6 +307,11 @@ export default function AddressField({
                   {place.approximate && (
                     <small>Ponto aproximado · confira o endereço</small>
                   )}
+                  {place.outsideCoverage && (
+                    <small>
+                      Outro município · confira a cobertura do transporte
+                    </small>
+                  )}
                 </span>
               </button>
             </li>
@@ -291,17 +321,31 @@ export default function AddressField({
       {pending && !selected && (
         <div className="address-approximate" role="status">
           <p>
-            O endereço completo, incluindo o número, não foi confirmado. Confira
-            este ponto aproximado: <strong>{pending.label}</strong>.
+            {pending.approximate
+              ? "O endereço completo, incluindo o número, não foi confirmado. Confira este ponto aproximado: "
+              : "Confira o local antes de continuar: "}
+            <strong>{pending.label}</strong>.
           </p>
+          {pending.outsideCoverage && (
+            <p>
+              Este local fica fora do município de São Paulo. Os ônibus
+              municipais da SPTrans podem não atender essa região; a
+              disponibilidade de metrô/trem depende da base de trajetos.
+            </p>
+          )}
           <button type="button" onClick={() => onSelect(pending)}>
-            Usar este ponto aproximado
+            {pending.approximate
+              ? "Usar este ponto aproximado"
+              : "Usar este local"}
           </button>
         </div>
       )}
       {searched && !busy && !error && !results.length && !selected && (
         <p className="address-status" role="status">
-          Nenhum endereço encontrado. Tente rua, número e bairro.
+          Nenhum endereço encontrado
+          {scope === "region" ? " em São Paulo e arredores" : ""}. Tente rua,
+          número, bairro ou CEP
+          {scope === "region" ? ", ou inclua outras cidades" : ""}.
         </p>
       )}
     </div>

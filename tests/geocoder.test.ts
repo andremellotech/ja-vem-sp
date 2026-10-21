@@ -19,7 +19,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.useRealTimers();
 });
-it("pesquisa uma vez com consulta íntegra, deduplica e confirma o número", async () => {
+it("preserva a consulta íntegra e não confirma qualificadores desconhecidos", async () => {
   const fetcher = vi.fn(async (_input: string) =>
     Response.json({
       features: [
@@ -38,9 +38,9 @@ it("pesquisa uma vez com consulta íntegra, deduplica e confirma o número", asy
   expect(url.searchParams.getAll("q")).toHaveLength(1);
   expect(url.searchParams.get("q")).toContain("Av. São João, 42 & Praça");
   expect(url.searchParams.get("countrycode")).toBe("BR");
-  expect(url.searchParams.get("limit")).toBe("6");
+  expect(url.searchParams.get("limit")).toBe("20");
   expect(result).toHaveLength(1);
-  expect(result[0].approximate).toBe(false);
+  expect(result[0].approximate).toBe(true);
   expect(result[0].label).toContain("42");
 });
 it("avisa quando o número não é confirmado, limita resultados e mantém texto seguro", async () => {
@@ -48,7 +48,7 @@ it("avisa quando o número não é confirmado, limita resultados e mantém texto
     "fetch",
     vi.fn(async () =>
       Response.json({
-        features: Array.from({ length: 8 }, (_, i) =>
+        features: Array.from({ length: 20 }, (_, i) =>
           addressFeature({
             osm_id: i + 1,
             street: "<img src=x onerror=alert(1)>",
@@ -59,7 +59,7 @@ it("avisa quando o número não é confirmado, limita resultados e mantém texto
     ),
   );
   const result = await searchAddresses("Rua Exemplo, 42");
-  expect(result).toHaveLength(6);
+  expect(result).toHaveLength(12);
   expect(result.every((r) => r.approximate)).toBe(true);
   expect(result[0].label).toContain("<img");
 });
