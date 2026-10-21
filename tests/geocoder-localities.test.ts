@@ -189,6 +189,17 @@ it("agrupa fragmentos da mesma rua e CEP sem ocultar outro bairro", async () => 
     true,
   );
 });
+it("preserva homônimos distantes mesmo quando o cadastro informa o mesmo bairro e CEP", async () => {
+  vi.stubGlobal("fetch", async () =>
+    Response.json({
+      features: [
+        feature(1, { postcode: "01000-000" }),
+        feature(2, { postcode: "01000-000" }, [-46.75, -23.6]),
+      ],
+    }),
+  );
+  expect(await searchAddresses("Rua dos Campos")).toHaveLength(2);
+});
 it("mantém rótulos distinguíveis mesmo para homônimos à mesma distância do centro", async () => {
   vi.stubGlobal("fetch", async () =>
     Response.json({
