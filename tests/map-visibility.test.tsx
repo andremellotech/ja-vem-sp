@@ -11,6 +11,7 @@ const engine = vi.hoisted(() => ({
   resize: () => {},
   fitBounds: vi.fn(),
   setView: vi.fn(),
+  polyline: vi.fn(),
 }));
 vi.mock("leaflet", () => {
   const map = {
@@ -31,6 +32,9 @@ vi.mock("leaflet", () => {
       control: { zoom: () => ({ addTo() {} }) },
       layerGroup: () => ({ addTo: () => ({ clearLayers() {} }) }),
       circleMarker: () => ({ addTo: () => ({ bindTooltip() {}, on() {} }) }),
+      polyline: engine.polyline.mockImplementation(() => ({
+        addTo: () => ({ bindTooltip() {} }),
+      })),
       latLngBounds: (points: unknown) => points,
     },
   };
@@ -86,6 +90,93 @@ afterEach(() => {
   vi.unstubAllGlobals();
   engine.fitBounds.mockClear();
   engine.setView.mockClear();
+  engine.polyline.mockClear();
+});
+
+it("desenha a curva do caminho e a inclui no enquadramento do mapa", () => {
+  engine.width = 390;
+  engine.height = 540;
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  );
+  render(
+    <TransitMap
+      stops={[]}
+      vehicles={[]}
+      selectedStop={null}
+      onSelectStop={() => {}}
+      location={null}
+      journey={{
+        origin: { lat: -23.5, lon: -46.6 },
+        destination: { lat: -23.6, lon: -46.7 },
+        stops: [],
+        paths: [
+          {
+            kind: "walk",
+            label: "A pé",
+            points: [
+              { lat: -23.5, lon: -46.6 },
+              { lat: -23.7, lon: -46.8 },
+              { lat: -23.6, lon: -46.7 },
+            ],
+          },
+        ],
+      }}
+    />,
+  );
+  expect(engine.polyline).toHaveBeenCalledWith(
+    [
+      [-23.5, -46.6],
+      [-23.7, -46.8],
+      [-23.6, -46.7],
+    ],
+    expect.objectContaining({ dashArray: "7 8" }),
+  );
+  expect(engine.fitBounds.mock.lastCall?.[0]).toContainEqual([-23.7, -46.8]);
+});
+it("enquadra o trecho escolhido mesmo mostrando paradas além dele", () => {
+  engine.width = 390;
+  engine.height = 540;
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  );
+  render(
+    <TransitMap
+      stops={[]}
+      vehicles={[]}
+      selectedStop={null}
+      onSelectStop={() => {}}
+      location={null}
+      journey={{
+        origin: { lat: -23.5, lon: -46.6 },
+        destination: { lat: -23.6, lon: -46.7 },
+        stops: [
+          { id: "beyond", name: "Além do trecho", lat: -23.9, lon: -46.9 },
+        ],
+        paths: [
+          {
+            kind: "metro",
+            label: "Metrô",
+            points: [
+              { lat: -23.5, lon: -46.6 },
+              { lat: -23.6, lon: -46.7 },
+            ],
+          },
+        ],
+      }}
+    />,
+  );
+  expect(engine.fitBounds.mock.lastCall?.[0]).not.toContainEqual([
+    -23.9, -46.9,
+  ]);
 });
 
 it.each(["stop", "location"] as const)(

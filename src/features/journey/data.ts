@@ -71,6 +71,10 @@ export function parsePlannerData(
       !text(r.id) ||
       !text(r.code) ||
       !text(r.name) ||
+      (r.mode !== undefined &&
+        !["bus", "metro", "train"].includes(r.mode as string)) ||
+      (r.color !== undefined &&
+        (typeof r.color !== "string" || !/^[a-f0-9]{6}$/i.test(r.color))) ||
       routes.has(r.id)
     )
       return fail();

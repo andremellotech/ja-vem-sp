@@ -46,12 +46,14 @@ it("exige dois pontos, calcula opções e invalida ao editar", async () => {
   expect(
     (
       screen.getByRole("button", {
-        name: "Ver opções de ônibus",
+        name: "Ver opções de transporte",
       }) as HTMLButtonElement
     ).disabled,
   ).toBe(true);
   await confirmEndpoints();
-  fireEvent.click(screen.getByRole("button", { name: "Ver opções de ônibus" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Ver opções de transporte" }),
+  );
   await screen.findByRole("button", { name: "Ver opção 1 no mapa" });
   expect(onMapSelection).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -100,7 +102,7 @@ it("inverte os dois pontos confirmados", async () => {
   expect(
     (
       screen.getByRole("button", {
-        name: "Ver opções de ônibus",
+        name: "Ver opções de transporte",
       }) as HTMLButtonElement
     ).disabled,
   ).toBe(false);
@@ -115,7 +117,9 @@ it("só amplia para 1200m depois do clique", async () => {
     />,
   );
   await confirmEndpoints();
-  fireEvent.click(screen.getByRole("button", { name: "Ver opções de ônibus" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Ver opções de transporte" }),
+  );
   await screen.findByRole("button", { name: "Ampliar busca para 1.200 m" });
   expect(workers[0].jobs[0].input.radiusM).toBe(800);
   fireEvent.click(
@@ -133,7 +137,9 @@ it("não aplica resultado antigo após nova consulta", async () => {
     />,
   );
   await confirmEndpoints();
-  fireEvent.click(screen.getByRole("button", { name: "Ver opções de ônibus" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Ver opções de transporte" }),
+  );
   fireEvent.change(
     screen.getByRole("combobox", { name: "Para onde você vai?" }),
     { target: { value: "Rua Destino, 1000" } },
@@ -142,7 +148,9 @@ it("não aplica resultado antigo após nova consulta", async () => {
   fireEvent.click(
     await screen.findByRole("option", { name: /^Rua Destino, 1000/ }),
   );
-  fireEvent.click(screen.getByRole("button", { name: "Ver opções de ônibus" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Ver opções de transporte" }),
+  );
   await act(async () => {
     workers[0].reply(2);
     workers[0].reply(1, { options: [], radiusM: 800 });
@@ -216,7 +224,9 @@ it("reutiliza GPS disponível para origem vazia e permite confirmar somente dest
   fireEvent.change(screen.getByLabelText("Priorizar"), {
     target: { value: "walking" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Ver opções de ônibus" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Ver opções de transporte" }),
+  );
   await screen.findByRole("button", { name: "Ver opção 1 no mapa" });
   expect(workers[0].jobs[0].input.criterion).toBe("walking");
 });

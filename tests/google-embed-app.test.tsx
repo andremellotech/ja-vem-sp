@@ -113,7 +113,7 @@ it.each([undefined, "", " \t "])(
       screen.queryByText(/Google dentro do site ainda não está configurado/),
     ).toBeNull();
     fireEvent.click(
-      screen.getByRole("button", { name: "Ver opções de ônibus" }),
+      screen.getByRole("button", { name: "Ver opções de transporte" }),
     );
     const option = await screen.findByRole("button", {
       name: "Ver opção 1 no mapa",
@@ -173,7 +173,7 @@ it.each(["mode", "invert", "criterion", "hide", "gtfs", "edit"])(
     }
     if (action === "gtfs") {
       fireEvent.click(
-        screen.getByRole("button", { name: "Ver opções de ônibus" }),
+        screen.getByRole("button", { name: "Ver opções de transporte" }),
       );
       await screen.findByRole("button", { name: "Ver opção 1 no mapa" });
     }
@@ -195,7 +195,9 @@ it("cancels pending GTFS and never restores a stale selection after Google or le
   const { workers } = installJourneyMocks({ autoRespond: false });
   render(<App apiBase="https://api.test" googleEmbedKey="fixture-only" />);
   await endpoints();
-  fireEvent.click(screen.getByRole("button", { name: "Ver opções de ônibus" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Ver opções de transporte" }),
+  );
   begin();
   await act(async () => workers[0].reply(1));
   expect(iframe()).not.toBeNull();
@@ -287,7 +289,7 @@ it.each(["", "fixture-only"])(
     render(<App apiBase="https://api.test" googleEmbedKey={googleEmbedKey} />);
     await endpoints();
     fireEvent.click(
-      screen.getByRole("button", { name: "Ver opções de ônibus" }),
+      screen.getByRole("button", { name: "Ver opções de transporte" }),
     );
     await screen.findByRole("button", { name: "Ver opção 1 no mapa" });
     if (googleEmbedKey) {
@@ -310,8 +312,8 @@ it.each(["", "fixture-only"])(
       }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("link", {
-        name: "Ir a pé até o embarque no Google Maps",
+      screen.getByRole("button", {
+        name: "Ir a pé até o embarque",
       }),
     ).toBeTruthy();
     expect(iframe()).toBeNull();
@@ -324,7 +326,7 @@ it.each(["", "fixture-only"])(
     render(<App apiBase="https://api.test" googleEmbedKey={googleEmbedKey} />);
     await endpoints();
     fireEvent.click(
-      screen.getByRole("button", { name: "Ver opções de ônibus" }),
+      screen.getByRole("button", { name: "Ver opções de transporte" }),
     );
     if (googleEmbedKey) {
       fireEvent.change(screen.getByLabelText("Modo no Google"), {

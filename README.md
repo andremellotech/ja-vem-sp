@@ -1,20 +1,22 @@
 # Já Vem SP
 
-Site de transporte de São Paulo com origem e destino por endereço, opções de ônibus diretas ou com uma troca, mapa, busca de linhas, paradas, posições de ônibus, previsões e favoritos locais. Código próprio; não é um produto oficial da SPTrans ou do Moovit.
+Site de transporte de São Paulo com origem e destino por endereço, trajetos de caminhada, ônibus, metrô e trem no mapa interno, opções diretas ou com uma troca, busca de linhas, paradas, posições de ônibus, previsões e favoritos locais. Código próprio; não é um produto oficial da SPTrans ou do Moovit.
 
 ## Estado real
 
-Site publicado em https://andremellotech.github.io/ja-vem-sp/ e API em https://ja-vem-sp-api.andremello.workers.dev. A integração autenticada com a SPTrans foi validada em produção em 19/10/2026, incluindo busca de linhas, posições GPS, paradas e consulta de previsões (que pode retornar vazia). O token fica criptografado no Worker; o site não serve ônibus ou horários fictícios. Metrô/trens no planejador, login sincronizado, notificações e bilhetagem não estão implementados.
+Site publicado em https://andremellotech.github.io/ja-vem-sp/ e API em https://ja-vem-sp-api.andremello.workers.dev. A integração autenticada com a SPTrans foi validada em produção em 19/10/2026, incluindo busca de linhas, posições GPS, paradas e consulta de previsões (que pode retornar vazia). O token fica criptografado no Worker; o site não serve ônibus ou horários fictícios. Metrô e trem usam apenas cadastro GTFS, sem posições ou chegadas ao vivo. Login sincronizado, notificações e bilhetagem não estão implementados.
 
 ## Origem e destino
 
-Confirme os dois endereços, ou use o GPS como origem, e clique em **Ver opções de ônibus**. Resultados aproximados exigem confirmação adicional. A busca considera paradas até 800 m de cada endereço, com ampliação explícita para 1.200 m quando não encontra opções. Mostra até seis alternativas diretas ou com uma troca na mesma parada cadastrada. A consulta de chegadas no embarque ou na troca usa a SPTrans e preserva os endereços para voltar ao trajeto.
+Confirme os dois endereços, ou use o GPS como origem, e clique em **Ver opções de transporte**. O filtro permite todos os modos, somente ônibus ou somente metrô/trem. Resultados aproximados exigem confirmação adicional. A busca considera paradas e estações até 800 m de cada endereço, com ampliação explícita para 1.200 m quando não encontra opções. Mostra até seis alternativas diretas ou com uma troca. Entre ônibus, a troca usa a mesma parada; conexões envolvendo ferrovia podem incluir caminhada de até 250 m em linha reta, sem presumir integração tarifária ou acesso livre. Chegadas SPTrans são oferecidas somente para pernas de ônibus e preservam os endereços para voltar ao trajeto.
 
-Com os dois pontos confirmados, **Compare no Google Maps** abre caminhada ou transporte público em outra aba, incluindo metrô e trem conforme disponibilidade no Google. A opção de ônibus selecionada também oferece caminhada até o embarque e do desembarque ao destino. Os links só enviam as coordenadas ao Google quando o visitante clica; não exigem chave nem ativam a Routes API. A posição dos ônibus e as chegadas continuam na SPTrans. Veja [possibilidades e limites da integração](docs/integracao-google-maps.md).
+**Ver caminhada no mapa** calcula o caminho e as instruções no próprio site. Selecionar uma opção de transporte desenha os trechos GTFS e calcula apenas seus acessos, saída e eventual troca a pé. As formas vêm de `public/data/paths/`, carregadas sob demanda, e a caminhada do perfil de pedestres OSRM/FOSSGIS. Não há chave, cartão, Google API ou fallback pago. Os links **Compare no Google Maps** são uma comparação externa opcional ao final dos resultados.
+
+O serviço comunitário FOSSGIS recebe os pontos e dados técnicos como IP e pode registrar solicitações. Cada navegador enfileira os pedidos, com pelo menos 1.100 ms entre inícios, cache em memória e timeout de 25 s. Não há chamadas de caminhada durante a digitação ou pré-busca de alternativas. Indisponibilidade ou ausência de geometria é informada; não se desenham retas fingindo caminhos. Fontes/condições: https://routing.openstreetmap.de/about.html e https://project-osrm.org/docs/v5.24.0/api/#route-service . A disponibilidade não é garantida; uso em escala exige avaliar outro serviço sem ativação automática de plano pago.
 
 Todas as paradas ativas dentro desse raio participam do cálculo. Foi removido o corte anterior nas 12 mais próximas, que podia excluir uma linha direta: na região de Conceição, a parada da 857C-10 era a 13ª, a 235 m do destino. Na lista de uma linha, a busca aceita nome, rua de referência ou código do ponto; endereços do GTFS são preservados quando a API não os informa. Confira a [auditoria de cobertura](docs/auditoria-paradas.md) e suas limitações.
 
-O cálculo usa itinerários e dias de serviço do GTFS oficial, em um Web Worker no navegador. Não usa horários de partida nem garante que a linha esteja operando naquele momento: pode incluir linhas noturnas conforme o calendário. As distâncias de acesso são em linha reta, não trajetos de caminhada; verifique travessias e acesso. Não há estimativa inventada de duração, espera, conexão ou “rota mais rápida”. Feed vencido ou incompatível interrompe o cálculo e pede atualização.
+O cálculo usa itinerários e dias de serviço do GTFS oficial, em um Web Worker no navegador. Não usa horários de partida nem garante que a linha esteja operando naquele momento: pode incluir linhas noturnas e linhas ferroviárias cadastradas cuja operação não foi confirmada. As distâncias usadas para ordenar alternativas são em linha reta; a caminhada selecionada tem distância e duração estimadas pelo serviço de pedestres. Não há estimativa de duração total do transporte, espera, conexão ou “rota mais rápida”. Feed vencido ou incompatível interrompe o cálculo e pede atualização.
 
 Ao escolher uma linha, o mapa oculta a rede geral e completa as paradas vazias ou parciais do Olho Vivo com os itinerários GTFS dessa linha. O sentido é comparado por código, destino e paradas conhecidas, sem supor equivalência entre os identificadores de sentido dos dois fornecedores. Quando o sentido não pode ser confirmado, a interface avisa. Em um trajeto, são mostradas as paradas completas das linhas usadas, inclusive além do trecho de embarque/desembarque; outros pontos ficam ocultos.
 
@@ -82,7 +84,15 @@ O mapa mostra todas as paradas do GTFS oficial (`public/data/stops.json`), carre
 python scripts/import-gtfs.py data/gtfs.zip public/data/stops.json --planner-output public/data/planner.json --schedules-output public/data/schedules.json --source-url https://www.sptrans.com.br/desenvolvedores/ --retrieved-at AAAA-MM-DD --license "CONDICOES_DO_PORTAL"
 ```
 
-3. Faça commit de `public/data/stops.json`, `public/data/planner.json` e `public/data/schedules.json` juntos. Os arquivos trazem procedência e hash do mesmo ZIP; o planejador rejeita versões incompatíveis. A importação de paradas contabiliza registros inválidos; a geração do planejador valida referências, ordem de paradas e calendários antes de gravar. Rode os testes e publique o site novamente.
+3. Gere também a base multimodal e as geometrias usando exatamente o mesmo ZIP:
+
+```
+python scripts/import-paths.py data/gtfs.zip public/data/stops.json public/data/paths public/data/multimodal.json
+```
+
+4. Faça commit dos datasets de paradas, itinerários, programação, multimodal e `paths/*.json` juntos. Os arquivos trazem procedência e hash do mesmo ZIP; o planejador rejeita versões incompatíveis. A importação valida referências, ordem de paradas e calendários. Rode os testes e publique o site novamente.
+
+A base multimodal tem 1.365 linhas e 2.272 itinerários: 1.349 linhas de ônibus, 9 de metrô e 7 de trem. Foram gerados 2.271 registros de geometria; 114 têm pelo menos uma parada sem correspondência na shape, preservada como índice nulo. A perna que atravessa um índice nulo fica sem desenho e recebe aviso. Exemplo: a shape da Linha 12 começa em Tatuapé, embora o itinerário inclua Brás. As partes válidas continuam disponíveis. Cadastro e geometria não comprovam operação ou acesso atual.
 
 O índice atual contém 1.349 linhas de ônibus, 2.240 itinerários e calendários/exceções de serviço, com 39.846 janelas de frequência em `schedules.json`. As janelas preservam limites, lacunas e intervalos; não são partidas exatas e não filtram as opções por horário. O identificador da parada no GTFS (`stop_id`) é usado nas consultas de previsão. Ausência de previsão não comprova ausência de serviço; o próprio Olho Vivo pode não cobrir a parada.
 

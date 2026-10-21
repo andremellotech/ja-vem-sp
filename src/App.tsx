@@ -199,6 +199,7 @@ export default function App({
     setMode(next);
   }
   function showJourneyArrivals(selected: Stop, selection = journeySelection) {
+    if (selection?.railStopIds?.includes(selected.id)) return;
     showTab("search");
     setMode("lines");
     setFoundStops([selected]);
@@ -624,7 +625,7 @@ export default function App({
           <span className="city-dot" />
           São Paulo, SP
           <span className="city-divider" />
-          <span className="city-label">Ônibus municipais</span>
+          <span className="city-label">Transporte público</span>
         </div>
       </header>
       <div
@@ -677,7 +678,7 @@ export default function App({
           </h1>
           <p className="intro">
             {isJourney
-              ? "Dois endereços. Opções de ônibus para seu caminho."
+              ? "Dois endereços. Caminhe ou vá de ônibus, metrô e trem."
               : "Encontre sua linha e acompanhe a chegada."}
             <br />
             São Paulo fica mais perto quando você sabe.
@@ -1055,6 +1056,7 @@ export default function App({
                 vehicles={vehicles}
                 selectedStop={stop}
                 onSelectStop={(id) => {
+                  if (journeySelection?.railStopIds?.includes(id)) return;
                   const selected = journeySelection?.stops.find(
                     (s) => s.id === id,
                   );
@@ -1110,7 +1112,9 @@ export default function App({
                 <div className="map-route-count" role="status">
                   {line
                     ? `${stops.length} paradas desta linha`
-                    : `${journeySelection!.stops.length} paradas das linhas usadas`}{" "}
+                    : journeySelection!.stops.length
+                      ? `${journeySelection!.stops.length} paradas/estações das linhas usadas`
+                      : "Caminhada no mapa"}{" "}
                   · outros pontos ocultos
                 </div>
               )}
@@ -1227,10 +1231,9 @@ export default function App({
             <p>
               O mapa usa OpenStreetMap. Favoritos são salvos apenas neste
               navegador. O planejador usa itinerários e calendários de ônibus,
-              com até uma troca; não garante operação ou conexão neste horário.
-              O quadro opcional do Google oferece caminhada e transporte
-              público; trajetos e horários ficam dentro dele. Bilhetagem não
-              está integrada.
+              metrô e trem, com até uma troca; não garante operação ou conexão
+              neste horário. Os caminhos são exibidos no mapa do site; caminhada
+              usa OpenStreetMap/FOSSGIS. Bilhetagem não está integrada.
             </p>
             <p>
               As sugestões de endereço enviam sua digitação ao
@@ -1240,10 +1243,11 @@ export default function App({
               por ponto; confira o link oficial de cada linha.
             </p>
             <p>
-              Ao clicar em mostrar o trajeto Google, os pontos confirmados são
-              enviados diretamente ao Google. O site não lê etapas ou linhas do
-              quadro. Veículos e chegadas continuam pela SPTrans; a linha e o
-              sentido são escolhidos por você.
+              Ao calcular, os pontos dos trechos a pé são enviados ao FOSSGIS,
+              que pode registrar coordenadas e IP. Não há chave Google, cartão
+              ou API paga no planejamento publicado. Links opcionais Google só
+              enviam pontos ao serem abertos. Veículos e chegadas de ônibus
+              continuam pela SPTrans; não há previsão ao vivo de trens ou metrô.
             </p>
             <a
               className="primary-link"
