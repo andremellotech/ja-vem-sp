@@ -167,8 +167,8 @@ function places(raw: unknown[], query: string, scope: AddressScope): Place[] {
       candidates.some(
         (c) =>
           c.key === key &&
-          ((streetOnly && c.streetOnly && knownArea) ||
-            distanceM(lat, lon, c.place.lat, c.place.lon) < 50),
+          distanceM(lat, lon, c.place.lat, c.place.lon) <
+            (streetOnly && c.streetOnly && knownArea ? 500 : 50),
       )
     )
       continue;
