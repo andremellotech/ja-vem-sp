@@ -1,2 +1,6 @@
 SPTRANS_TOKEN="configure-localmente"
 ALLOWED_ORIGIN="http://127.0.0.1:5174"
+# Opcional: somente no servidor; restrinja esta chave à Routes API.
+# GOOGLE_ROUTES_API_KEY="configure-localmente"
+# O endpoint requer também o binding GOOGLE_RATE_LIMITER de wrangler.toml.
+# Antes de ativar: configure a quota diária no Google Cloud conforme orçamento.

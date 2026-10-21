@@ -9,6 +9,9 @@ import {
 import type { Stop } from "../../contracts";
 import AddressField from "./AddressField";
 import JourneyOptions from "./JourneyOptions";
+import GoogleDirections from "./GoogleDirections";
+import GoogleJourneyPlanner from "../google-routes/GoogleJourneyPlanner";
+import type { GoogleRoute } from "../../google-routes-contracts";
 import { createPlannerClient } from "./client";
 import { serviceDateInSaoPaulo } from "./calendar";
 import type {
@@ -25,6 +28,10 @@ type Props = {
   onShowMap?: () => void;
   active?: boolean;
   deviceLocation?: Point | null;
+  apiBase?: string;
+  googleConfigured?: boolean;
+  onGoogleMapSelection?: (route: GoogleRoute | null) => void;
+  onTrackGoogleBus?: (code: string) => void;
 };
 export default function JourneyPlanner({
   onMapSelection,
@@ -33,7 +40,12 @@ export default function JourneyPlanner({
   onShowMap,
   active = true,
   deviceLocation,
+  apiBase = import.meta.env.VITE_API_BASE_URL || "",
+  googleConfigured,
+  onGoogleMapSelection = () => {},
+  onTrackGoogleBus = () => {},
 }: Props) {
+  const [googleReset, setGoogleReset] = useState(0);
   const [originText, setOriginText] = useState(""),
     [destinationText, setDestinationText] = useState("");
   const [origin, setOrigin] = useState<Place | null>(null),
@@ -62,7 +74,7 @@ export default function JourneyPlanner({
     controller = useRef<AbortController | null>(null),
     generation = useRef(0),
     gpsGeneration = useRef(0);
-  function resetPlan() {
+  function resetOwnPlan() {
     generation.current++;
     controller.current?.abort();
     setBusy(false);
@@ -71,6 +83,11 @@ export default function JourneyPlanner({
     setSelectedId(null);
     onMapSelection(null);
   }
+  function resetPlan() {
+    resetOwnPlan();
+    setGoogleReset((n) => n + 1);
+    onGoogleMapSelection(null);
+  }
   function cancelGps() {
     gpsGeneration.current++;
     setLocating(false);
@@ -78,6 +95,8 @@ export default function JourneyPlanner({
   }
   function choose(option: JourneyOption) {
     if (!origin || !destination) return;
+    setGoogleReset((n) => n + 1);
+    onGoogleMapSelection(null);
     setSelectedId(option.id);
     const stops = [
       ...new Map(
@@ -192,8 +211,8 @@ export default function JourneyPlanner({
     <section className="journey-planner" aria-label="Planejar trajeto">
       <div className="journey-form">
         <p className="address-privacy">
-          Ao digitar pelo menos três caracteres ou clicar em localizar, a busca
-          é enviada ao{" "}
+          Ao digitar pelo menos três caracteres ou buscar um endereço, o texto é
+          enviado ao{" "}
           <a
             href="https://github.com/komoot/photon"
             target="_blank"
@@ -201,7 +220,9 @@ export default function JourneyPlanner({
           >
             Photon/OpenStreetMap
           </a>
-          . Os endereços não são salvos pelo site.
+          . O GPS é solicitado apenas ao clicar em usar minha localização;
+          somente um cálculo Google ou link externo envia os pontos ao Google.
+          Os endereços não são salvos pelo site.
         </p>
         <AddressField
           active={active}
@@ -302,6 +323,21 @@ export default function JourneyPlanner({
             : "Menos trocas, depois menor caminhada e menos paradas."}{" "}
           Não estimamos o menor tempo de viagem.
         </p>
+        {origin && destination && (
+          <GoogleJourneyPlanner
+            origin={origin}
+            destination={destination}
+            apiBase={apiBase}
+            configured={googleConfigured}
+            active={active}
+            resetKey={googleReset}
+            onBegin={resetOwnPlan}
+            onMapSelection={onGoogleMapSelection}
+            onTrackBus={onTrackGoogleBus}
+            onShowMap={onShowMap}
+          />
+        )}
+        <GoogleDirections origin={origin} destination={destination} />
       </div>
       <div className="journey-result-state" aria-live="polite">
         {busy && (
@@ -342,6 +378,8 @@ export default function JourneyPlanner({
       {!!result?.options.length && (
         <JourneyOptions
           options={result.options}
+          origin={origin}
+          destination={destination}
           selectedId={selectedId}
           onSelect={(option) => {
             choose(option);
