@@ -116,7 +116,12 @@ export default function TransitMap({
         fillOpacity: 1,
       }).addTo(group);
     const framing = journey
-      ? [journey.origin, journey.destination, ...journey.stops]
+      ? [
+          journey.origin,
+          journey.destination,
+          ...(journey.paths?.length ? [] : journey.stops),
+          ...(journey.paths ?? []).flatMap((p) => p.points),
+        ]
       : stops;
     const key = journey
       ? "journey:" + journey.stops.map((s) => s.id).join(",")
@@ -138,6 +143,28 @@ export default function TransitMap({
     if (!group) return;
     group.clearLayers();
     if (!journey) return;
+    for (const path of journey.paths ?? []) {
+      const color =
+        path.kind === "walk"
+          ? "#426a85"
+          : path.color && /^[a-f0-9]{6}$/i.test(path.color)
+            ? `#${path.color}`
+            : path.kind === "bus"
+              ? "#19734f"
+              : "#714da1";
+      const line = L.polyline(
+        path.points.map((p) => [p.lat, p.lon] as L.LatLngTuple),
+        {
+          color,
+          weight: path.kind === "walk" ? 4 : 5,
+          opacity: 0.9,
+          ...(path.kind === "walk" ? { dashArray: "7 8" } : {}),
+        },
+      ).addTo(group);
+      const label = document.createElement("span");
+      label.textContent = path.label;
+      line.bindTooltip(label);
+    }
     const mark = (
       point: { lat: number; lon: number },
       label: string,
@@ -161,9 +188,15 @@ export default function TransitMap({
       mark(
         s,
         [s.name, s.address].filter(Boolean).join(" · "),
-        selectedStop === s.id ? "#df7137" : "#285f50",
+        selectedStop === s.id
+          ? "#df7137"
+          : journey.railStopIds?.includes(s.id)
+            ? "#714da1"
+            : "#285f50",
         selectedStop === s.id ? 9 : 5,
-        () => onSelectStop(s.id),
+        journey.railStopIds?.includes(s.id)
+          ? undefined
+          : () => onSelectStop(s.id),
       );
     mark(journey.origin, "Origem do trajeto", "#3478d7", 9);
     mark(journey.destination, "Destino do trajeto", "#df7137", 9);
@@ -233,6 +266,29 @@ export default function TransitMap({
           {hint === "zoom"
             ? "Aproxime o mapa para ver as paradas"
             : "Muitas paradas aqui — aproxime mais para ver todas"}
+        </div>
+      )}
+      {!!journey?.paths?.length && (
+        <div className="map-path-legend">
+          <span>━━ Transporte · ┄┄ Caminhada</span>
+          <span>
+            © OpenStreetMap ·{" "}
+            <a
+              href="https://routing.openstreetmap.de/about.html"
+              target="_blank"
+              rel="noreferrer"
+            >
+              FOSSGIS
+            </a>{" "}
+            ·{" "}
+            <a
+              href="https://www.openstreetmap.org/fixthemap"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Corrigir mapa
+            </a>
+          </span>
         </div>
       )}
     </>

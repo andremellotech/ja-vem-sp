@@ -61,7 +61,9 @@ it("abre o formulário por padrão e consulta todas as linhas ao escolher embarq
     screen.getByRole("combobox", { name: "De onde você vai sair?" }),
   ).toBeTruthy();
   await endpoints();
-  fireEvent.click(screen.getByRole("button", { name: "Ver opções de ônibus" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Ver opções de transporte" }),
+  );
   fireEvent.click(
     await screen.findByRole("button", {
       name: "Ver chegadas no embarque da opção 1",
@@ -116,7 +118,9 @@ it("oculta paradas de pesquisas anteriores ao desenhar um trajeto", async () => 
   await screen.findByRole("button", { name: "Parada antiga" });
   fireEvent.click(screen.getByRole("button", { name: "Trajeto" }));
   await endpoints();
-  fireEvent.click(screen.getByRole("button", { name: "Ver opções de ônibus" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Ver opções de transporte" }),
+  );
   await screen.findByRole("button", { name: "Ver opção 1 no mapa" });
   expect(screen.getByLabelText("Pontos da pesquisa no mapa").textContent).toBe(
     "",
@@ -129,7 +133,9 @@ it("chegadas de uma alternativa também selecionam as paradas dessa alternativa"
   const { workers, arrivalUrls } = installJourneyMocks({ autoRespond: false });
   render(<App apiBase="https://api.test" />);
   await endpoints();
-  fireEvent.click(screen.getByRole("button", { name: "Ver opções de ônibus" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Ver opções de transporte" }),
+  );
   const input = workers[0].jobs[0].input;
   const result = findJourneys(
     createPlannerIndex(fixture(), networkStops),

@@ -84,7 +84,7 @@ def _date(value):
     return value
 
 
-def convert_planner(source, stops_data, provenance):
+def convert_planner(source, stops_data, provenance, allowed_types=("3",)):
     """Gera itinerários cadastrados; não deduz horários nem sentidos Olho Vivo."""
     valid_stops = {r[0] for r in stops_data["stops"]}
     with zipfile.ZipFile(source) as z:
@@ -96,7 +96,7 @@ def convert_planner(source, stops_data, provenance):
             if not rid or rid in route_ids:
                 raise ValueError("Identificador de rota ausente ou repetido")
             route_ids.add(rid)
-            if r.get("route_type") == "3":
+            if r.get("route_type") in allowed_types:
                 bus_ids.add(rid)
                 routes.append(dict(id=rid, code=(r.get("route_short_name") or rid).strip(), name=(r.get("route_long_name") or rid).strip()))
         trips, all_trips, bus_trips = [], set(), {}

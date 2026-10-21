@@ -6,7 +6,14 @@ export type Place = Point & {
   approximate: boolean;
   source: "photon" | "device";
 };
-export type Route = { id: string; code: string; name: string };
+export type TransportMode = "bus" | "metro" | "train";
+export type Route = {
+  id: string;
+  code: string;
+  name: string;
+  mode?: TransportMode;
+  color?: string;
+};
 export type Trip = {
   id: string;
   routeId: string;
@@ -48,6 +55,7 @@ export type PlanInput = {
   serviceDate: string;
   radiusM: 800 | 1200;
   criterion?: "transfers" | "walking";
+  transport?: "all" | "bus" | "rail";
 };
 export type JourneyLeg = {
   tripId: string;
@@ -60,6 +68,9 @@ export type JourneyLeg = {
   toIndex: number;
   stopCount: number;
   routeStops: Stop[];
+  mode?: TransportMode;
+  color?: string;
+  feedHash?: string;
 };
 export type JourneyOption = {
   id: string;
@@ -68,6 +79,7 @@ export type JourneyOption = {
   egressM: number;
   transferCount: 0 | 1;
   stopCount: number;
+  transferWalkM?: number;
 };
 export type PlannerResult = {
   options: JourneyOption[];
@@ -78,6 +90,14 @@ export type JourneyMapSelection = {
   origin: Point;
   destination: Point;
   stops: Stop[];
+  paths?: MapPath[];
+  railStopIds?: string[];
+};
+export type MapPath = {
+  kind: TransportMode | "walk";
+  label: string;
+  points: Point[];
+  color?: string;
 };
 export type PlannerErrorCode =
   "INVALID_DATA" | "EXPIRED_DATA" | "DATA_UNAVAILABLE" | "TIMEOUT";
