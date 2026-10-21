@@ -1,6 +1,7 @@
 import { ArrowRight, BusFront, MapPin, Radio } from "lucide-react";
 import type { Stop } from "../../contracts";
-import type { JourneyOption } from "./types";
+import type { JourneyOption, Point } from "./types";
+import { WalkingDirections } from "./GoogleDirections";
 const distance = (m: number) =>
   m < 50
     ? "< 50 m"
@@ -10,12 +11,16 @@ const distance = (m: number) =>
 type Props = {
   options: JourneyOption[];
   selectedId: string | null;
+  origin?: Point | null;
+  destination?: Point | null;
   onSelect: (option: JourneyOption) => void;
   onShowArrivals: (stop: Stop, option: JourneyOption) => void;
 };
 export default function JourneyOptions({
   options,
   selectedId,
+  origin,
+  destination,
   onSelect,
   onShowArrivals,
 }: Props) {
@@ -109,6 +114,24 @@ export default function JourneyOptions({
               Chegadas no embarque
             </button>
           </div>
+          {selectedId === option.id && origin && destination && (
+            <div className="journey-walking-links">
+              <WalkingDirections
+                from={origin}
+                to={option.legs[0].from}
+                label="Ir a pé até o embarque"
+              />
+              <WalkingDirections
+                from={option.legs[option.legs.length - 1].to}
+                to={destination}
+                label="Ir a pé do desembarque ao destino"
+              />
+              <small>
+                Google Maps · abre em outra aba e recebe os pontos deste trecho
+                ao clicar.
+              </small>
+            </div>
+          )}
           {option.transferCount === 1 && (
             <button
               className="journey-transfer-arrivals"

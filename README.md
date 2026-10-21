@@ -4,11 +4,15 @@ Site de transporte de São Paulo com origem e destino por endereço, opções de
 
 ## Estado real
 
-Site publicado em https://andremellotech.github.io/ja-vem-sp/ e API em https://ja-vem-sp-api.andremello.workers.dev. A integração autenticada com a SPTrans foi validada em produção em 19/10/2026, incluindo busca de linhas, posições GPS, paradas e consulta de previsões (que pode retornar vazia). O token fica criptografado no Worker; o site não serve ônibus ou horários fictícios. Metrô/trens no planejador, login sincronizado, notificações e bilhetagem não estão implementados.
+Site publicado em https://andremellotech.github.io/ja-vem-sp/ e API em https://ja-vem-sp-api.andremello.workers.dev. A integração autenticada com a SPTrans foi validada em produção em 19/10/2026, incluindo busca de linhas, posições GPS, paradas e consulta de previsões (que pode retornar vazia). O token fica criptografado no Worker; o site não serve ônibus ou horários fictícios. O código para trajetos Google (incluindo metrô/trens conforme disponibilidade) está preparado e depende da ativação/configuração do proprietário; a integração real ainda precisa ser validada. Login sincronizado, notificações e bilhetagem não estão implementados.
 
 ## Origem e destino
 
 Confirme os dois endereços, ou use o GPS como origem, e clique em **Ver opções de ônibus**. Resultados aproximados exigem confirmação adicional. A busca considera paradas até 800 m de cada endereço, com ampliação explícita para 1.200 m quando não encontra opções. Mostra até seis alternativas diretas ou com uma troca na mesma parada cadastrada. A consulta de chegadas no embarque ou na troca usa a SPTrans e preserva os endereços para voltar ao trajeto.
+
+Com os dois pontos confirmados, **Calcular com Google Maps** permite consultar caminhada ou transporte público, incluindo metrô e trem conforme disponibilidade, quando as chaves e os limites estiverem configurados. Somente esse clique envia os pontos ao Google pelo servidor; o mapa Google carrega após o resultado. Até quatro alternativas mostram instruções, distâncias, durações e horários retornados. Editar, mudar critérios, sair do modo ou escolher GTFS limpa o conteúdo Google. **Acompanhar ônibus** abre a busca SPTrans pelo código e exige escolher o sentido.
+
+Como alternativa, **Compare no Google Maps** abre caminhada ou transporte público em outra aba. A opção própria de ônibus selecionada também oferece caminhada até o embarque e do desembarque ao destino. Esses links só enviam as coordenadas ao Google quando o visitante clica; não exigem chave nem ativam a Routes API do site. A posição dos ônibus e as chegadas continuam na SPTrans. Veja [configuração e limites da integração](docs/integracao-google-maps.md). Termos e privacidade são públicos em `termos.html` e `privacidade.html`, acessíveis pelo rodapé.
 
 Todas as paradas ativas dentro desse raio participam do cálculo. Foi removido o corte anterior nas 12 mais próximas, que podia excluir uma linha direta: na região de Conceição, a parada da 857C-10 era a 13ª, a 235 m do destino. Na lista de uma linha, a busca aceita nome, rua de referência ou código do ponto; endereços do GTFS são preservados quando a API não os informa. Confira a [auditoria de cobertura](docs/auditoria-paradas.md) e suas limitações.
 
@@ -58,14 +62,14 @@ A autenticação SPTrans usa cookie mantido apenas no servidor. A sessão é rea
 
 Crie um repositório vazio, envie este código para `main` e selecione GitHub Actions como fonte em Settings → Pages. O workflow publica somente `dist/`; o código do Worker não é servido no Pages. URLs de assets são relativas para funcionar no subdiretório do repositório. O segredo SPTrans pertence ao servidor; a variável `VITE_API_BASE_URL` é pública.
 
-O workflow testa a aplicação antes de publicar. Mudanças na API exigem publicação separada do Worker. Sem API configurada o layout permanece acessível e informa a limitação.
+O workflow testa a aplicação antes de publicar. Mudanças na API exigem publicação separada do Worker. Sem API configurada o layout permanece acessível e informa a limitação. Para o mapa Google opcional, `VITE_GOOGLE_MAPS_API_KEY` é uma variável pública de build; restrinja a chave à Maps JavaScript API e aos referenciadores do site. A chave `GOOGLE_ROUTES_API_KEY` pertence exclusivamente aos segredos do Worker, com restrição à Routes API. Billing, termos, APIs e quotas exigem configuração/autorização do proprietário antes da ativação.
 
 ## Fontes e horários
 
 - SPTrans: https://www.sptrans.com.br/desenvolvedores/api-do-olho-vivo-guia-de-referencia/documentacao-api/
 - Mapa: OpenStreetMap; atribuição visível. Tiles padrão para prévia/uso interativo moderado, respeitando https://operations.osmfoundation.org/policies/tiles/ . Sem download em massa, prefetch ou uso offline. Para escalar, contratar fornecedor de tiles e substituir a URL.
 - Fontes tipográficas: Google Fonts; o navegador solicita esses recursos externos.
-- O marcador azul usa localização apenas após ação do visitante e permissão do navegador. Localização não é enviada à nossa API. O provedor do mapa recebe as solicitações de tiles da área exibida.
+- O marcador azul usa localização apenas após ação do visitante e permissão do navegador. Localizar-se não envia automaticamente o GPS à nossa API. Quando usado como origem, o ponto é enviado ao Google pelo servidor somente ao clicar em calcular Google, ou diretamente ao Google ao abrir um link externo. O provedor de cada mapa recebe as solicitações da área exibida.
 - Posições exibem horário GPS quando disponível. A consulta tem timestamp próprio. Previsões HH:mm são exibidas no horário de São Paulo, sem inventar data/contagem regressiva em viradas de dia.
 - Favoritos: dados locais do navegador, sem sincronização entre dispositivos.
 

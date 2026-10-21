@@ -30,6 +30,8 @@ import {
   type Arrival,
 } from "./contracts";
 import TransitMap from "./features/map/TransitMap";
+import GoogleRouteMap from "./features/google-routes/GoogleRouteMap";
+import type { GoogleRoute } from "./google-routes-contracts";
 import StopPicker from "./features/stops/StopPicker";
 import JourneyPlanner from "./features/journey/JourneyPlanner";
 import LineSearch from "./features/lines/LineSearch";
@@ -108,6 +110,12 @@ export default function App({
   const [mode, setMode] = useState<"journey" | "nearby" | "lines">("journey");
   const [journeySelection, setJourneySelection] =
     useState<JourneyMapSelection | null>(null);
+  const [googleSelection, setGoogleSelection] = useState<GoogleRoute | null>(
+    null,
+  );
+  const [googleConfigured, setGoogleConfigured] = useState<boolean | undefined>(
+    undefined,
+  );
   const [lineLoading, setLineLoading] = useState(false);
   const [stopStatus, setStopStatus] = useState<"loading" | "ready" | "error">(
     "loading",
@@ -167,7 +175,10 @@ export default function App({
     const c = new AbortController();
     fetch(apiBase.replace(/\/$/, "") + "/api/health", { signal: c.signal })
       .then((r) => r.json())
-      .then((r) => setOnline(r.configured === true))
+      .then((r) => {
+        setOnline(r.configured === true);
+        setGoogleConfigured(r.googleRoutesConfigured === true);
+      })
       .catch(() => setOnline(false));
     return () => c.abort();
   }, [apiBase]);
@@ -186,6 +197,7 @@ export default function App({
     setTab(next);
     setView("list");
     setJourneySelection(null);
+    setGoogleSelection(null);
   }
   function changeMode(next: "journey" | "nearby" | "lines") {
     showTab("search");
@@ -701,6 +713,13 @@ export default function App({
           </div>
           <div className="journey-pane" id="journey-panel" hidden={!isJourney}>
             <JourneyPlanner
+              apiBase={apiBase}
+              googleConfigured={googleConfigured}
+              onGoogleMapSelection={setGoogleSelection}
+              onTrackGoogleBus={(code) => {
+                changeMode("lines");
+                void search(code);
+              }}
               active={isJourney}
               deviceLocation={
                 location ? { lat: location[0], lon: location[1] } : null
@@ -1022,105 +1041,116 @@ export default function App({
           id="map-panel"
           aria-label="Explorar mapa"
         >
-          <TransitMap
-            network={line || journeySelection ? null : network}
-            stops={journeySelection ? [] : mapStops}
-            vehicles={vehicles}
-            selectedStop={stop}
-            onSelectStop={(id) => {
-              const selected = journeySelection?.stops.find((s) => s.id === id);
-              if (selected) showJourneyArrivals(selected);
-              else {
-                setMode("lines");
-                selectStop(id);
-              }
-            }}
-            location={location}
-            journey={journeySelection}
-          />
-          <div className="map-top">
-            <div className="map-title">
-              <span className="map-title-icon">
-                <MapPin size={18} />
-              </span>
-              <span>
-                São Paulo<small>Uma cidade. Muitos caminhos.</small>
-              </span>
-            </div>
-            <div
-              className={
-                "connection-pill " +
-                (online && !error && !arrivalError ? "connected" : "")
-              }
-            >
-              <span />
-              {error || arrivalError
-                ? "Atualização indisponível"
-                : online
-                  ? "SPTrans conectada"
-                  : "Dados ao vivo não conectados"}
-            </div>
-          </div>
-          <div className="map-controls">
-            <button
-              onClick={locate}
-              aria-label="Minha localização"
-              title="Minha localização"
-            >
-              <LocateFixed size={21} />
-            </button>
-            <button
-              onClick={() => setSettings(true)}
-              aria-label="Configurações e informações"
-              title="Informações"
-            >
-              <Settings2 size={20} />
-            </button>
-          </div>
-          {(line || journeySelection) && (
-            <div className="map-route-count" role="status">
-              {line
-                ? `${stops.length} paradas desta linha`
-                : `${journeySelection!.stops.length} paradas das linhas usadas`}{" "}
-              · outros pontos ocultos
-            </div>
-          )}
-          {!line && !journeySelection && (
-            <div className="map-callout">
-              <span className="callout-icon">
-                <BusFront size={27} />
-              </span>
-              <div>
-                <span className="eyebrow">O PRÓXIMO PASSO É SEU</span>
-                <h2>
-                  A cidade não para.
-                  <br />
-                  Você não precisa esperar no escuro.
-                </h2>
-                <p>
-                  {isJourney
-                    ? "Informe de onde você sai e aonde quer chegar."
-                    : "Busque uma linha ou parada para descobrir seu caminho."}
-                </p>
+          {googleSelection && isJourney ? (
+            <GoogleRouteMap route={googleSelection} />
+          ) : (
+            <>
+              <TransitMap
+                network={line || journeySelection ? null : network}
+                stops={journeySelection ? [] : mapStops}
+                vehicles={vehicles}
+                selectedStop={stop}
+                onSelectStop={(id) => {
+                  const selected = journeySelection?.stops.find(
+                    (s) => s.id === id,
+                  );
+                  if (selected) showJourneyArrivals(selected);
+                  else {
+                    setMode("lines");
+                    selectStop(id);
+                  }
+                }}
+                location={location}
+                journey={journeySelection}
+              />
+              <div className="map-top">
+                <div className="map-title">
+                  <span className="map-title-icon">
+                    <MapPin size={18} />
+                  </span>
+                  <span>
+                    São Paulo<small>Uma cidade. Muitos caminhos.</small>
+                  </span>
+                </div>
+                <div
+                  className={
+                    "connection-pill " +
+                    (online && !error && !arrivalError ? "connected" : "")
+                  }
+                >
+                  <span />
+                  {error || arrivalError
+                    ? "Atualização indisponível"
+                    : online
+                      ? "SPTrans conectada"
+                      : "Dados ao vivo não conectados"}
+                </div>
               </div>
-              <ArrowUpRight className="callout-arrow" size={24} />
-            </div>
+              <div className="map-controls">
+                <button
+                  onClick={locate}
+                  aria-label="Minha localização"
+                  title="Minha localização"
+                >
+                  <LocateFixed size={21} />
+                </button>
+                <button
+                  onClick={() => setSettings(true)}
+                  aria-label="Configurações e informações"
+                  title="Informações"
+                >
+                  <Settings2 size={20} />
+                </button>
+              </div>
+              {(line || journeySelection) && (
+                <div className="map-route-count" role="status">
+                  {line
+                    ? `${stops.length} paradas desta linha`
+                    : `${journeySelection!.stops.length} paradas das linhas usadas`}{" "}
+                  · outros pontos ocultos
+                </div>
+              )}
+              {!line && !journeySelection && (
+                <div className="map-callout">
+                  <span className="callout-icon">
+                    <BusFront size={27} />
+                  </span>
+                  <div>
+                    <span className="eyebrow">O PRÓXIMO PASSO É SEU</span>
+                    <h2>
+                      A cidade não para.
+                      <br />
+                      Você não precisa esperar no escuro.
+                    </h2>
+                    <p>
+                      {isJourney
+                        ? "Informe de onde você sai e aonde quer chegar."
+                        : "Busque uma linha ou parada para descobrir seu caminho."}
+                    </p>
+                  </div>
+                  <ArrowUpRight className="callout-arrow" size={24} />
+                </div>
+              )}
+              <div className="map-bottom">
+                <div className="legend">
+                  <span className="legend-stop" />
+                  Paradas
+                  <span className="legend-bus" />
+                  Ônibus
+                  <span className="legend-location" />
+                  Você
+                </div>
+                <button
+                  className="connect-btn"
+                  onClick={() => setSettings(true)}
+                >
+                  {online ? <Check size={15} /> : <Info size={15} />}{" "}
+                  {online ? "Sobre os dados" : "Conectar dados"}
+                  <ArrowUpRight size={14} />
+                </button>
+              </div>
+            </>
           )}
-          <div className="map-bottom">
-            <div className="legend">
-              <span className="legend-stop" />
-              Paradas
-              <span className="legend-bus" />
-              Ônibus
-              <span className="legend-location" />
-              Você
-            </div>
-            <button className="connect-btn" onClick={() => setSettings(true)}>
-              {online ? <Check size={15} /> : <Info size={15} />}{" "}
-              {online ? "Sobre os dados" : "Conectar dados"}
-              <ArrowUpRight size={14} />
-            </button>
-          </div>
         </section>
       </main>
       <footer>
@@ -1136,6 +1166,8 @@ export default function App({
         >
           Sobre a fonte dos dados <ExternalLink size={12} />
         </a>
+        <a href={`${import.meta.env.BASE_URL}termos.html`}>Termos de uso</a>
+        <a href={`${import.meta.env.BASE_URL}privacidade.html`}>Privacidade</a>
       </footer>
       {notice && (
         <div className="toast" role="status">
@@ -1189,10 +1221,11 @@ export default function App({
               </p>
             )}
             <p>
-              O mapa usa OpenStreetMap. Favoritos são salvos apenas neste
-              navegador. O planejador usa itinerários e calendários de ônibus,
-              com até uma troca; não garante operação ou conexão neste horário.
-              Metrô, trens e bilhetagem ainda não estão integrados.
+              O mapa da SPTrans usa OpenStreetMap; trajetos Google usam Google
+              Maps. Favoritos são salvos apenas neste navegador. O planejador
+              usa itinerários e calendários de ônibus, com até uma troca; não
+              garante operação ou conexão neste horário. Metrô e trens dependem
+              da disponibilidade Google. Bilhetagem não está integrada.
             </p>
             <p>
               As sugestões de endereço enviam sua digitação ao
@@ -1200,6 +1233,13 @@ export default function App({
               GPS não são salvos pelo site. A programação mostra faixas e
               intervalos do GTFS, sem partidas exatas ou horários de passagem
               por ponto; confira o link oficial de cada linha.
+            </p>
+            <p>
+              O cálculo Google envia os pontos confirmados ao Google pelo
+              servidor somente ao clicar em calcular. O mapa Google carrega após
+              esse cálculo. Os trajetos ficam apenas na tela e são removidos ao
+              editar ou sair do modo. A posição GPS e as chegadas dos ônibus
+              continuam vindo da SPTrans.
             </p>
             <a
               className="primary-link"

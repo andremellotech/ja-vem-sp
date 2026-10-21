@@ -1,5 +1,10 @@
 import { ApiError } from "../../src/contracts";
 import { createSptrans } from "./sptrans";
+import {
+  computeGoogleRoutes,
+  googleRoutesConfigured,
+  type GoogleRoutesEnv,
+} from "./google-routes";
 const clients = new WeakMap<
   typeof fetch,
   { token: string; api: ReturnType<typeof createSptrans> }
@@ -12,7 +17,7 @@ function getClient(token: string, fetcher: typeof fetch) {
   }
   return entry.api;
 }
-export interface Env {
+export interface Env extends GoogleRoutesEnv {
   SPTRANS_TOKEN?: string;
   ALLOWED_ORIGIN: string;
   RATE_LIMITER?: {
@@ -34,7 +39,8 @@ export async function handleRequest(
   };
   if (allowed) {
     headers["Access-Control-Allow-Origin"] = env.ALLOWED_ORIGIN;
-    headers["Access-Control-Allow-Methods"] = "GET, OPTIONS";
+    headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS";
+    headers["Access-Control-Allow-Headers"] = "Content-Type";
   }
   const json = (data: unknown, status = 200) =>
     new Response(JSON.stringify(data), { status, headers });
@@ -45,6 +51,38 @@ export async function handleRequest(
     );
   if (request.method === "OPTIONS")
     return new Response(null, { status: 204, headers });
+  const url = new URL(request.url),
+    p = url.pathname;
+  if (p === "/api/google/routes") {
+    if (request.method !== "POST")
+      return json(
+        {
+          error: {
+            code: "METHOD_NOT_ALLOWED",
+            message: "Método não permitido.",
+          },
+        },
+        405,
+      );
+    try {
+      return json(await computeGoogleRoutes(request, env, fetcher));
+    } catch (error) {
+      if (error instanceof ApiError)
+        return json(
+          { error: { code: error.code, message: error.message } },
+          error.status,
+        );
+      return json(
+        {
+          error: {
+            code: "PROVIDER_UNAVAILABLE",
+            message: "Não foi possível consultar os trajetos do Google Maps.",
+          },
+        },
+        502,
+      );
+    }
+  }
   if (request.method !== "GET")
     return json(
       {
@@ -52,13 +90,12 @@ export async function handleRequest(
       },
       405,
     );
-  const url = new URL(request.url),
-    p = url.pathname;
   if (p === "/api/health")
     return json({
       configured: !!env.SPTRANS_TOKEN,
       source: "SPTrans",
       rateLimited: !!env.RATE_LIMITER,
+      googleRoutesConfigured: googleRoutesConfigured(env),
     });
   const line = p.match(/^\/api\/lines\/([^/]+)\/(stops|vehicles)$/),
     stop = p.match(/^\/api\/stops\/([^/]+)\/arrivals$/);
