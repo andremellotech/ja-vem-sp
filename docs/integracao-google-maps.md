@@ -1,22 +1,20 @@
-# Google Maps dentro do site: Maps Embed
+# Google Maps sem chave: Maps URLs
 
-Esta versão usa apenas a Maps Embed API oficial para exibir caminhada ou transporte público entre dois pontos confirmados. O orçamento escolhido é R$ 0. A versão avançada com Routes/Maps JavaScript está preservada separadamente e não é necessária para este fluxo.
+Na release de **21/10/2026**, o visitante confirma origem e destino e usa **A pé no Google Maps** ou **Transporte público no Google Maps** em outra aba. Esse caminho usa Maps URLs, é gratuito e não exige chave, faturamento Google Cloud ou cartão. O orçamento escolhido continua R$ 0. A versão avançada Routes/Maps JavaScript está preservada separadamente e não participa deste fluxo.
 
-## Configuração pelo responsável
+Os links usam `https://www.google.com/maps/dir/`, com `api=1`, coordenadas confirmadas em `origin` e `destination` e `travelmode=walking` ou `transit`. Somente o clique envia esses pontos ao Google, inclusive GPS se usado. As opções nativas continuam oferecendo caminhada até o embarque e do desembarque ao destino; cálculo GTFS, veículos e chegadas permanecem independentes e usam os dados próprios/SPTrans.
 
-A [documentação de cobrança](https://developers.google.com/maps/documentation/embed/usage-and-billing) informa uso ilimitado do Maps Embed sem cobrança. O [guia de configuração](https://developers.google.com/maps/documentation/embed/quickstart) exige projeto Google Cloud, chave e configuração de faturamento. Gratuidade deste produto não autoriza habilitar serviços pagos no projeto.
+O proprietário informou ter concluído etapas de conta/login e recusou criar a chave agora. Essa informação não permite afirmar que nenhuma configuração de conta aconteceu. A decisão desta publicação é usar o caminho sem chave; não há necessidade de cadastrar cartão ou ativar faturamento Cloud para os links externos. Isso não constitui controle de custos de serviços não relacionados da conta.
 
-1. Prefira um projeto separado, com somente **Maps Embed API** habilitada. Não habilite Routes, Maps JavaScript, Places, assinatura, avaliação temporária ou upgrade pago para este fluxo.
-2. O proprietário deve concluir pessoalmente qualquer cadastro financeiro exigido. Esta alteração não cria conta, chave, vínculo de faturamento ou serviço Google.
-3. Após autorização concreta do proprietário, crie uma chave de navegador exclusiva. Restrinja **API restrictions** exclusivamente à **Maps Embed API** e **Application restrictions / Websites** ao referenciador HTTPS do site. Confira os padrões aceitos na [documentação de segurança](https://developers.google.com/maps/api-security-best-practices). Em GitHub Pages, vários projetos podem compartilhar a mesma origem; mantenha a restrição ao produto Embed e evite reutilizar a chave.
-4. Configure `VITE_GOOGLE_EMBED_API_KEY` em `.env.local` ignorado para desenvolvimento ou na variável de repositório GitHub Actions para o build do Pages. A chave será pública no bundle/iframe; a proteção é a restrição de produto e referenciador, não ocultação. Nunca versione um valor real ou reutilize chave de outro aplicativo. Não use Demo Key.
-5. Antes de liberar, verifique o projeto, faturamento e restrições. Teste caminhada e transporte público no HTTPS autorizado, com a chave restrita. Uma notificação de orçamento não bloqueia despesas de outros produtos; mantenha serviços pagos fora deste projeto.
+## Embed opcional dormente
 
-Sem chave, o site explica a indisponibilidade e conserva os links externos Google Maps URLs, que não exigem chave. Não há rota simulada apresentada como ativa.
+O código do Maps Embed foi preservado para trabalho futuro, condicionado a nova autorização explícita do proprietário. `VITE_GOOGLE_EMBED_API_KEY` fica vazio em `.env.example`, e o build do Pages força `""` em vez de ler uma variável do repositório. Preencher essa variável não ativa o iframe nesta release. Sem chave, inclusive com apenas espaços, o planejador não mostra painel, seletor, botão desabilitado ou aviso de configuração do Google.
 
-## Fluxo e limites
+Qualquer ativação futura exige revisar separadamente os [requisitos de configuração](https://developers.google.com/maps/documentation/embed/quickstart), [cobrança Embed](https://developers.google.com/maps/documentation/embed/usage-and-billing) e [restrições de chave](https://developers.google.com/maps/api-security-best-practices), além de alterar deliberadamente o build. Nenhuma criação de chave, aceite financeiro, vínculo de faturamento ou habilitação de API faz parte desta release. Uma chave futura seria pública no navegador e precisaria ser exclusiva para Maps Embed e restrita ao site HTTPS; nunca versione um valor real ou reutilize uma chave de outro aplicativo.
 
-O visitante confirma origem e destino, escolhe Caminhada ou Transporte público e clica em **Mostrar trajeto Google**. Somente então o navegador cria o iframe e envia as coordenadas diretamente ao Google, inclusive GPS quando usado como ponto. A URL usa exclusivamente `https://www.google.com/maps/embed/v1/directions` com `key`, `origin`, `destination`, `mode`, `language=pt-BR`, `region=BR` e `units=metric`. Consulte os [parâmetros oficiais](https://developers.google.com/maps/documentation/embed/embedding-map).
+## Contrato preservado para eventual ativação
+
+Com uma chave configurada em um trabalho futuro autorizado, o visitante confirma origem e destino, escolhe Caminhada ou Transporte público e clica em **Mostrar trajeto Google**. Somente então o navegador cria o iframe e envia as coordenadas diretamente ao Google, inclusive GPS quando usado como ponto. A URL usa exclusivamente `https://www.google.com/maps/embed/v1/directions` com `key`, `origin`, `destination`, `mode`, `language=pt-BR`, `region=BR` e `units=metric`. Consulte os [parâmetros oficiais](https://developers.google.com/maps/documentation/embed/embedding-map).
 
 O iframe substitui Leaflet enquanto ativo, preservando a exibição e atribuição próprias do Google. Os controles do site ficam fora do quadro. Ele usa título acessível, `loading=lazy`, `allowFullScreen`, `referrerPolicy=strict-origin-when-cross-origin` e tamanho mínimo 200×200. A política envia a origem do site para validar a restrição da chave, sem caminho da página.
 
@@ -30,4 +28,4 @@ Não há SDK Google, geocodificação Google, scraping, armazenamento de geometr
 
 ## Verificação
 
-Execute `pnpm test`, `python -m unittest discover -s tests -p 'test_*.py'`, `pnpm typecheck` e `pnpm build`. Faça QA da Lista/Mapa em 360, 390 e 430 px, além do desktop. Fixtures de teste não comprovam integração real. Não consulte Google com chave falsa; previews devem bloquear o iframe e identificar claramente DEMONSTRAÇÃO. Os testes reais ficam pendentes até existir configuração gratuita e chave restrita verificadas.
+Execute `pnpm test`, `python -m unittest discover -s tests -p 'test_*.py'`, `pnpm typecheck` e `pnpm build`. Os testes da release verificam URLs externas após confirmação dos pontos, ausência de controles/iframe sem chave, fluxo nativo e preservação do contrato opcional com fixture isolada. Fixtures não comprovam integração real. Não consulte Google com chave falsa; previews do Embed devem bloquear o iframe e identificar claramente DEMONSTRAÇÃO. Validação real do iframe não integra esta publicação e depende de futura autorização e configuração verificadas.

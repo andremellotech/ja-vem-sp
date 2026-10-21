@@ -1,5 +1,11 @@
 # Google Maps Embed com orçamento de R$ 0
 
+## Adendo de 21/10/2026 — publicação sem chave
+
+Este adendo substitui as etapas de ativação abaixo para a release atual. O proprietário informou ter concluído etapas de conta/login, respondeu **Não criar a chave agora** e reiterou orçamento de R$ 0, sem compras no cartão. Publicar somente Maps URLs externos de caminhada/transporte público entre pontos confirmados: esse caminho gratuito não exige chave, faturamento Google Cloud ou cartão. Não inferir que nenhuma configuração de conta aconteceu nem prometer controle de custos de outros serviços.
+
+O build do Pages força `VITE_GOOGLE_EMBED_API_KEY: ""`, preservando a variável SPTrans. Sem chave ou com apenas espaços, o painel Embed fica oculto, sem seletor, botão desabilitado ou aviso interno de configuração. Links externos e planejamento nativo/SPTrans continuam disponíveis. O código opcional Embed e seu contrato com fixture permanecem preservados, dormentes até nova autorização explícita. Criação de credenciais, aceite financeiro, habilitação de APIs e testes reais do iframe ficam fora desta publicação. As seções seguintes registram o desenho anterior, condicionado a essa autorização futura.
+
 ## Escopo escolhido
 
 O proprietário autorizou o aceite dos Termos Google Cloud, fixou orçamento mensal em R$ 0 e escolheu expressamente Maps Embed gratuito dentro do site. Mostrar caminhada e transporte público entre dois pontos confirmados, mantendo planejamento próprio, paradas, horários e acompanhamento SPTrans. A proposta avançada Routes/Maps JavaScript do PR #1 fica preservada; esta versão parte da main publicada, sem trazer APIs cobradas para o fluxo gratuito.

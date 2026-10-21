@@ -312,20 +312,24 @@ export default function JourneyPlanner({
             : "Menos trocas, depois menor caminhada e menos paradas."}{" "}
           Não estimamos o menor tempo de viagem.
         </p>
-        {active && origin && destination && onGoogleSelection && (
-          <GoogleEmbedPlanner
-            origin={origin}
-            destination={destination}
-            apiKey={googleEmbedKey}
-            onSelection={onGoogleSelection}
-            onBegin={() => {
-              cancelGps();
-              resetPlan();
-            }}
-            onShowMap={onShowMap}
-            onSearchBus={onSearchBus}
-          />
-        )}
+        {active &&
+          origin &&
+          destination &&
+          googleEmbedKey.trim() &&
+          onGoogleSelection && (
+            <GoogleEmbedPlanner
+              origin={origin}
+              destination={destination}
+              apiKey={googleEmbedKey}
+              onSelection={onGoogleSelection}
+              onBegin={() => {
+                cancelGps();
+                resetPlan();
+              }}
+              onShowMap={onShowMap}
+              onSearchBus={onSearchBus}
+            />
+          )}
         <GoogleDirections origin={origin} destination={destination} />
       </div>
       <div className="journey-result-state" aria-live="polite">

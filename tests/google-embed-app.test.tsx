@@ -82,25 +82,64 @@ it("requires explicit click and renders an isolated official iframe with fallbac
   fireEvent.click(screen.getByRole("button", { name: /Mapa/ }));
   expect(iframe()).toBe(frame);
 });
-it("keeps external alternatives and explains missing configuration without iframe", async () => {
-  installJourneyMocks();
-  render(<App apiBase="https://api.test" googleEmbedKey="" />);
-  await endpoints();
-  expect(
-    screen.getByText(/Google dentro do site ainda não está configurado/),
-  ).toBeTruthy();
-  expect(
-    (
+it.each([undefined, "", " \t "])(
+  "keeps confirmed external routes and native bus planning without Embed controls (key=%s)",
+  async (googleEmbedKey) => {
+    const { arrivalUrls } = installJourneyMocks();
+    render(<App apiBase="https://api.test" googleEmbedKey={googleEmbedKey} />);
+    expect(
+      screen.queryByRole("link", { name: "A pé no Google Maps" }),
+    ).toBeNull();
+    await endpoints();
+    for (const [name, mode] of [
+      ["A pé no Google Maps", "walking"],
+      ["Transporte público no Google Maps", "transit"],
+    ]) {
+      const link = screen.getByRole("link", { name }) as HTMLAnchorElement;
+      expect(link.href).toBe(
+        `https://www.google.com/maps/dir/?api=1&origin=-23.550000%2C-46.630000&destination=-23.590000%2C-46.670000&travelmode=${mode}`,
+      );
+      expect(link.target).toBe("_blank");
+      expect(link.rel).toContain("noreferrer");
+    }
+    expect(
+      screen.queryByRole("region", { name: "Google Maps dentro do site" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Mostrar trajeto Google" }),
+    ).toBeNull();
+    expect(screen.queryByLabelText("Modo no Google")).toBeNull();
+    expect(
+      screen.queryByText(/Google dentro do site ainda não está configurado/),
+    ).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ver opções de ônibus" }),
+    );
+    const option = await screen.findByRole("button", {
+      name: "Ver opção 1 no mapa",
+    });
+    expect(option.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(
       screen.getByRole("button", {
-        name: "Mostrar trajeto Google",
-      }) as HTMLButtonElement
-    ).disabled,
-  ).toBe(true);
-  expect(
-    screen.getByRole("link", { name: "Transporte público no Google Maps" }),
-  ).toBeTruthy();
-  expect(iframe()).toBeNull();
-});
+        name: "Ver chegadas no embarque da opção 1",
+      }),
+    );
+    await waitFor(() => expect(arrivalUrls.length).toBeGreaterThan(0));
+    expect(
+      arrivalUrls.every((url) => url.startsWith("https://api.test/api/stops/")),
+    ).toBe(true);
+    expect(iframe()).toBeNull();
+    expect(document.querySelector('script[src*="maps.googleapis"]')).toBeNull();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(
+          ([url, init]) =>
+            /google|routes/i.test(String(url)) || init?.method === "POST",
+        ),
+    ).toBe(false);
+  },
+);
 it.each(["mode", "invert", "criterion", "hide", "gtfs", "edit"])(
   "clears iframe on %s and requires another click",
   async (action) => {
@@ -242,7 +281,7 @@ it("returns to the SPTrans map without restoring Google on reentry", async () =>
   expect(iframe()).toBeNull();
 });
 it.each(["", "fixture-only"])(
-  "preserves selected GTFS options when configuring Google mode before Show (key=%s)",
+  "preserves selected GTFS options with an optional Google selector (key=%s)",
   async (googleEmbedKey) => {
     installJourneyMocks();
     render(<App apiBase="https://api.test" googleEmbedKey={googleEmbedKey} />);
@@ -251,9 +290,15 @@ it.each(["", "fixture-only"])(
       screen.getByRole("button", { name: "Ver opções de ônibus" }),
     );
     await screen.findByRole("button", { name: "Ver opção 1 no mapa" });
-    fireEvent.change(screen.getByLabelText("Modo no Google"), {
-      target: { value: "transit" },
-    });
+    if (googleEmbedKey) {
+      fireEvent.change(screen.getByLabelText("Modo no Google"), {
+        target: { value: "transit" },
+      });
+    } else {
+      expect(screen.queryByLabelText("Modo no Google")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: /Lista/ }));
+      fireEvent.click(screen.getByRole("button", { name: /Mapa/ }));
+    }
     expect(
       screen
         .getByRole("button", { name: "Ver opção 1 no mapa" })
@@ -273,7 +318,7 @@ it.each(["", "fixture-only"])(
   },
 );
 it.each(["", "fixture-only"])(
-  "preserves pending GTFS calculation when configuring Google mode before Show (key=%s)",
+  "preserves pending GTFS calculation with an optional Google selector (key=%s)",
   async (googleEmbedKey) => {
     const { workers } = installJourneyMocks({ autoRespond: false });
     render(<App apiBase="https://api.test" googleEmbedKey={googleEmbedKey} />);
@@ -281,9 +326,16 @@ it.each(["", "fixture-only"])(
     fireEvent.click(
       screen.getByRole("button", { name: "Ver opções de ônibus" }),
     );
-    fireEvent.change(screen.getByLabelText("Modo no Google"), {
-      target: { value: "transit" },
-    });
+    if (googleEmbedKey) {
+      fireEvent.change(screen.getByLabelText("Modo no Google"), {
+        target: { value: "transit" },
+      });
+    } else {
+      expect(screen.queryByLabelText("Modo no Google")).toBeNull();
+      expect(
+        screen.getByRole("link", { name: "Transporte público no Google Maps" }),
+      ).toBeTruthy();
+    }
     expect(
       screen.getByRole("button", { name: "Buscando opções…" }),
     ).toBeTruthy();

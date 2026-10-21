@@ -1,5 +1,11 @@
 # Google Maps Embed Implementation Plan
 
+## Adendo de 21/10/2026 — revisão da Task 2
+
+O proprietário informou ter concluído etapas de conta/login, recusou criar a chave agora e manteve R$ 0 sem compras no cartão. A Task 2 atual publica Maps URLs externos sem chave: caminhada/transporte público após confirmar os pontos, sem necessidade de faturamento Google Cloud ou cartão por esse caminho. Não afirmar ausência de configurações anteriores da conta nem garantia de custos de outros serviços.
+
+Substituir as etapas anteriores de ativação da Task 2 por: forçar a chave Embed vazia no Pages; ocultar controles/aviso Embed quando ausente ou em branco; preservar links externos, fluxo nativo/SPTrans e código opcional; atualizar testes de integração e documentação; validar testes, typecheck, build, formatação e diff. O iframe permanece dormente e exige nova autorização explícita antes de qualquer ativação futura. Não criar chave, configurar faturamento, aceitar compromissos financeiros, habilitar APIs ou testar Google real nesta release. O plano original abaixo é histórico; sua ativação Google não é requisito desta publicação. A integração/publicação continua sob responsabilidade do fluxo principal.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans. Execute task by task with verification and review.
 
 **Goal:** Mostrar trajetos Google dentro do Já Vem SP usando somente Maps Embed gratuito, preservando SPTrans.
