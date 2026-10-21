@@ -10,6 +10,8 @@ Site publicado em https://andremellotech.github.io/ja-vem-sp/ e API em https://j
 
 Confirme os dois endereços, ou use o GPS como origem, e clique em **Ver opções de ônibus**. Resultados aproximados exigem confirmação adicional. A busca considera paradas até 800 m de cada endereço, com ampliação explícita para 1.200 m quando não encontra opções. Mostra até seis alternativas diretas ou com uma troca na mesma parada cadastrada. A consulta de chegadas no embarque ou na troca usa a SPTrans e preserva os endereços para voltar ao trajeto.
 
+Com os dois pontos confirmados, **Compare no Google Maps** abre caminhada ou transporte público em outra aba, incluindo metrô e trem conforme disponibilidade no Google. A opção de ônibus selecionada também oferece caminhada até o embarque e do desembarque ao destino. Os links só enviam as coordenadas ao Google quando o visitante clica; não exigem chave nem ativam a Routes API. A posição dos ônibus e as chegadas continuam na SPTrans. Veja [possibilidades e limites da integração](docs/integracao-google-maps.md).
+
 Todas as paradas ativas dentro desse raio participam do cálculo. Foi removido o corte anterior nas 12 mais próximas, que podia excluir uma linha direta: na região de Conceição, a parada da 857C-10 era a 13ª, a 235 m do destino. Na lista de uma linha, a busca aceita nome, rua de referência ou código do ponto; endereços do GTFS são preservados quando a API não os informa. Confira a [auditoria de cobertura](docs/auditoria-paradas.md) e suas limitações.
 
 O cálculo usa itinerários e dias de serviço do GTFS oficial, em um Web Worker no navegador. Não usa horários de partida nem garante que a linha esteja operando naquele momento: pode incluir linhas noturnas conforme o calendário. As distâncias de acesso são em linha reta, não trajetos de caminhada; verifique travessias e acesso. Não há estimativa inventada de duração, espera, conexão ou “rota mais rápida”. Feed vencido ou incompatível interrompe o cálculo e pede atualização.
@@ -98,3 +100,9 @@ Os identificadores de linha/parada vêm da SPTrans; códigos exibidos como 675K-
 ## Investigação do aplicativo de referência
 
 O inventário de engenharia reversa foi realizado separadamente com REA/JADX e evidências estáticas. APKs, bibliotecas de terceiros e evidências brutas não fazem parte deste repositório. Referências encontradas no APK não implicam acesso público às APIs do Moovit. A matriz funcional sanitizada descreve cobertura e limites.
+
+## Google Maps sem chave — release de 21/10/2026
+
+Esta publicação usa os links externos **A pé** e **Transporte público**, disponíveis após confirmar origem e destino. Esse caminho Maps URLs é gratuito e não exige chave, faturamento Google Cloud ou cartão. Os pontos são enviados ao Google ao clicar no link; cálculo próprio, veículos e chegadas continuam pela SPTrans.
+
+O proprietário informou ter concluído etapas de conta/login, recusou criar a chave agora e manteve o orçamento de R$ 0. O código opcional Maps Embed permanece dormente até uma autorização explícita posterior: `VITE_GOOGLE_EMBED_API_KEY` fica vazio no build do Pages, mesmo que uma variável do repositório seja preenchida. Sem chave, o painel, seletor, botão e aviso interno de configuração do Embed ficam ocultos. Nenhum SDK Google ou chamada Routes é usado. Isso descreve este caminho do site, sem garantir controle de custos de outros serviços da conta. Veja [privacidade, limites e opção futura](docs/integracao-google-maps.md). Termos e privacidade são páginas estáticas públicas incluídas no build.

@@ -32,6 +32,8 @@ import {
 import TransitMap from "./features/map/TransitMap";
 import StopPicker from "./features/stops/StopPicker";
 import JourneyPlanner from "./features/journey/JourneyPlanner";
+import GoogleEmbedMap from "./features/google-embed/GoogleEmbedMap";
+import type { GoogleEmbedSelection } from "./features/google-embed/types";
 import LineSearch from "./features/lines/LineSearch";
 import NearbyTransit from "./features/nearby/NearbyTransit";
 import LineSchedule from "./features/schedules/LineSchedule";
@@ -63,8 +65,10 @@ const time = (v: string | null) =>
     : "não informado";
 export default function App({
   apiBase = configuredBase,
+  googleEmbedKey = import.meta.env.VITE_GOOGLE_EMBED_API_KEY || "",
 }: {
   apiBase?: string;
+  googleEmbedKey?: string;
 }) {
   const [query, setQuery] = useState(""),
     [lines, setLines] = useState<Line[]>([]),
@@ -108,6 +112,8 @@ export default function App({
   const [mode, setMode] = useState<"journey" | "nearby" | "lines">("journey");
   const [journeySelection, setJourneySelection] =
     useState<JourneyMapSelection | null>(null);
+  const [googleSelection, setGoogleSelection] =
+    useState<GoogleEmbedSelection | null>(null);
   const [lineLoading, setLineLoading] = useState(false);
   const [stopStatus, setStopStatus] = useState<"loading" | "ready" | "error">(
     "loading",
@@ -186,6 +192,7 @@ export default function App({
     setTab(next);
     setView("list");
     setJourneySelection(null);
+    setGoogleSelection(null);
   }
   function changeMode(next: "journey" | "nearby" | "lines") {
     showTab("search");
@@ -213,6 +220,7 @@ export default function App({
     setVehicles([]);
     setStop(null);
     setJourneySelection(null);
+    setGoogleSelection(null);
     setQuery(value);
   }
   function selectLine(selected: Line) {
@@ -238,6 +246,7 @@ export default function App({
     setStops([]);
     setFoundStops([]);
     setJourneySelection(null);
+    setGoogleSelection(null);
     setVehicles([]);
     setStop(null);
     setLines([]);
@@ -284,6 +293,7 @@ export default function App({
     setStopStatus("loading");
     setLineStopNote("");
     setJourneySelection(null);
+    setGoogleSelection(null);
     setVehicles([]);
     setStop(null);
     setArrivals([]);
@@ -705,6 +715,12 @@ export default function App({
               deviceLocation={
                 location ? { lat: location[0], lon: location[1] } : null
               }
+              googleEmbedKey={googleEmbedKey}
+              onGoogleSelection={setGoogleSelection}
+              onSearchBus={(code) => {
+                changeMode("lines");
+                void search(code);
+              }}
               onMapSelection={setJourneySelection}
               onShowArrivals={showJourneyArrivals}
               onLocate={locate}
@@ -1018,109 +1034,127 @@ export default function App({
           </div>
         </aside>
         <section
-          className="map-section"
+          className={
+            "map-section" +
+            (googleSelection && isJourney ? " has-google-embed" : "")
+          }
           id="map-panel"
           aria-label="Explorar mapa"
         >
-          <TransitMap
-            network={line || journeySelection ? null : network}
-            stops={journeySelection ? [] : mapStops}
-            vehicles={vehicles}
-            selectedStop={stop}
-            onSelectStop={(id) => {
-              const selected = journeySelection?.stops.find((s) => s.id === id);
-              if (selected) showJourneyArrivals(selected);
-              else {
-                setMode("lines");
-                selectStop(id);
-              }
-            }}
-            location={location}
-            journey={journeySelection}
-          />
-          <div className="map-top">
-            <div className="map-title">
-              <span className="map-title-icon">
-                <MapPin size={18} />
-              </span>
-              <span>
-                São Paulo<small>Uma cidade. Muitos caminhos.</small>
-              </span>
-            </div>
-            <div
-              className={
-                "connection-pill " +
-                (online && !error && !arrivalError ? "connected" : "")
-              }
-            >
-              <span />
-              {error || arrivalError
-                ? "Atualização indisponível"
-                : online
-                  ? "SPTrans conectada"
-                  : "Dados ao vivo não conectados"}
-            </div>
-          </div>
-          <div className="map-controls">
-            <button
-              onClick={locate}
-              aria-label="Minha localização"
-              title="Minha localização"
-            >
-              <LocateFixed size={21} />
-            </button>
-            <button
-              onClick={() => setSettings(true)}
-              aria-label="Configurações e informações"
-              title="Informações"
-            >
-              <Settings2 size={20} />
-            </button>
-          </div>
-          {(line || journeySelection) && (
-            <div className="map-route-count" role="status">
-              {line
-                ? `${stops.length} paradas desta linha`
-                : `${journeySelection!.stops.length} paradas das linhas usadas`}{" "}
-              · outros pontos ocultos
-            </div>
-          )}
-          {!line && !journeySelection && (
-            <div className="map-callout">
-              <span className="callout-icon">
-                <BusFront size={27} />
-              </span>
-              <div>
-                <span className="eyebrow">O PRÓXIMO PASSO É SEU</span>
-                <h2>
-                  A cidade não para.
-                  <br />
-                  Você não precisa esperar no escuro.
-                </h2>
-                <p>
-                  {isJourney
-                    ? "Informe de onde você sai e aonde quer chegar."
-                    : "Busque uma linha ou parada para descobrir seu caminho."}
-                </p>
+          {googleSelection && isJourney ? (
+            <GoogleEmbedMap
+              selection={googleSelection}
+              apiKey={googleEmbedKey}
+              onBack={() => setGoogleSelection(null)}
+            />
+          ) : (
+            <>
+              <TransitMap
+                network={line || journeySelection ? null : network}
+                stops={journeySelection ? [] : mapStops}
+                vehicles={vehicles}
+                selectedStop={stop}
+                onSelectStop={(id) => {
+                  const selected = journeySelection?.stops.find(
+                    (s) => s.id === id,
+                  );
+                  if (selected) showJourneyArrivals(selected);
+                  else {
+                    setMode("lines");
+                    selectStop(id);
+                  }
+                }}
+                location={location}
+                journey={journeySelection}
+              />
+              <div className="map-top">
+                <div className="map-title">
+                  <span className="map-title-icon">
+                    <MapPin size={18} />
+                  </span>
+                  <span>
+                    São Paulo<small>Uma cidade. Muitos caminhos.</small>
+                  </span>
+                </div>
+                <div
+                  className={
+                    "connection-pill " +
+                    (online && !error && !arrivalError ? "connected" : "")
+                  }
+                >
+                  <span />
+                  {error || arrivalError
+                    ? "Atualização indisponível"
+                    : online
+                      ? "SPTrans conectada"
+                      : "Dados ao vivo não conectados"}
+                </div>
               </div>
-              <ArrowUpRight className="callout-arrow" size={24} />
-            </div>
+              <div className="map-controls">
+                <button
+                  onClick={locate}
+                  aria-label="Minha localização"
+                  title="Minha localização"
+                >
+                  <LocateFixed size={21} />
+                </button>
+                <button
+                  onClick={() => setSettings(true)}
+                  aria-label="Configurações e informações"
+                  title="Informações"
+                >
+                  <Settings2 size={20} />
+                </button>
+              </div>
+              {(line || journeySelection) && (
+                <div className="map-route-count" role="status">
+                  {line
+                    ? `${stops.length} paradas desta linha`
+                    : `${journeySelection!.stops.length} paradas das linhas usadas`}{" "}
+                  · outros pontos ocultos
+                </div>
+              )}
+              {!line && !journeySelection && (
+                <div className="map-callout">
+                  <span className="callout-icon">
+                    <BusFront size={27} />
+                  </span>
+                  <div>
+                    <span className="eyebrow">O PRÓXIMO PASSO É SEU</span>
+                    <h2>
+                      A cidade não para.
+                      <br />
+                      Você não precisa esperar no escuro.
+                    </h2>
+                    <p>
+                      {isJourney
+                        ? "Informe de onde você sai e aonde quer chegar."
+                        : "Busque uma linha ou parada para descobrir seu caminho."}
+                    </p>
+                  </div>
+                  <ArrowUpRight className="callout-arrow" size={24} />
+                </div>
+              )}
+              <div className="map-bottom">
+                <div className="legend">
+                  <span className="legend-stop" />
+                  Paradas
+                  <span className="legend-bus" />
+                  Ônibus
+                  <span className="legend-location" />
+                  Você
+                </div>
+                <button
+                  className="connect-btn"
+                  onClick={() => setSettings(true)}
+                >
+                  {online ? <Check size={15} /> : <Info size={15} />}{" "}
+                  {online ? "Sobre os dados" : "Conectar dados"}
+                  <ArrowUpRight size={14} />
+                </button>
+              </div>
+            </>
           )}
-          <div className="map-bottom">
-            <div className="legend">
-              <span className="legend-stop" />
-              Paradas
-              <span className="legend-bus" />
-              Ônibus
-              <span className="legend-location" />
-              Você
-            </div>
-            <button className="connect-btn" onClick={() => setSettings(true)}>
-              {online ? <Check size={15} /> : <Info size={15} />}{" "}
-              {online ? "Sobre os dados" : "Conectar dados"}
-              <ArrowUpRight size={14} />
-            </button>
-          </div>
         </section>
       </main>
       <footer>
@@ -1136,6 +1170,8 @@ export default function App({
         >
           Sobre a fonte dos dados <ExternalLink size={12} />
         </a>
+        <a href="./termos.html">Termos de uso</a>
+        <a href="./privacidade.html">Privacidade</a>
       </footer>
       {notice && (
         <div className="toast" role="status">
@@ -1192,7 +1228,9 @@ export default function App({
               O mapa usa OpenStreetMap. Favoritos são salvos apenas neste
               navegador. O planejador usa itinerários e calendários de ônibus,
               com até uma troca; não garante operação ou conexão neste horário.
-              Metrô, trens e bilhetagem ainda não estão integrados.
+              O quadro opcional do Google oferece caminhada e transporte
+              público; trajetos e horários ficam dentro dele. Bilhetagem não
+              está integrada.
             </p>
             <p>
               As sugestões de endereço enviam sua digitação ao
@@ -1200,6 +1238,12 @@ export default function App({
               GPS não são salvos pelo site. A programação mostra faixas e
               intervalos do GTFS, sem partidas exatas ou horários de passagem
               por ponto; confira o link oficial de cada linha.
+            </p>
+            <p>
+              Ao clicar em mostrar o trajeto Google, os pontos confirmados são
+              enviados diretamente ao Google. O site não lê etapas ou linhas do
+              quadro. Veículos e chegadas continuam pela SPTrans; a linha e o
+              sentido são escolhidos por você.
             </p>
             <a
               className="primary-link"
