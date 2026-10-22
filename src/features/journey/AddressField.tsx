@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Check, Globe2, MapPin, Search, X } from "lucide-react";
 import { searchAddresses, type AddressScope } from "./geocoder";
 import type { Place } from "./types";
+import PointPicker from "./PointPicker";
 type Props = {
   label: string;
   value: string;
@@ -39,6 +40,7 @@ export default function AddressField({
     [highlighted, setHighlighted] = useState(-1),
     [composing, setComposing] = useState(false);
   const [scope, setScope] = useState<AddressScope>("region");
+  const [pointOpen, setPointOpen] = useState(false);
   function cancel() {
     clearTimeout(timer.current);
     generation.current++;
@@ -57,6 +59,7 @@ export default function AddressField({
     setSearched(false);
     setOpen(false);
     setHighlighted(-1);
+    setPointOpen(false);
   }
   useEffect(() => {
     invalidate();
@@ -120,8 +123,9 @@ export default function AddressField({
     setBusy(false);
     setOpen(false);
     setHighlighted(-1);
-    if (place.approximate || place.outsideCoverage) setPending(place);
-    else onSelect(place);
+    const chosen = { ...place, requestedAddress: value.trim() };
+    if (place.approximate || place.outsideCoverage) setPending(chosen);
+    else onSelect(chosen);
   }
   useEffect(() => {
     if (open && highlighted >= 0)
@@ -226,11 +230,13 @@ export default function AddressField({
       {selected ? (
         <p className="address-confirmation">
           <Check size={14} />{" "}
-          {selected.source === "device"
-            ? "Localização confirmada"
-            : selected.approximate
-              ? "Ponto aproximado confirmado"
-              : "Endereço confirmado"}
+          {selected.source === "map"
+            ? "Ponto marcado por você · número não validado pela base"
+            : selected.source === "device"
+              ? "Localização confirmada"
+              : selected.approximate
+                ? "Ponto aproximado confirmado"
+                : "Endereço confirmado"}
         </p>
       ) : (
         <button
@@ -245,6 +251,66 @@ export default function AddressField({
           <Search size={15} />
           {busy ? "Localizando…" : "Localizar endereço"}
         </button>
+      )}
+      {selected && selected.label !== value.trim() && (
+        <p className="address-status">Local escolhido: {selected.label}</p>
+      )}
+      {selected?.source === "map" && selected.referenceLabel && (
+        <p className="address-status">
+          Referência pesquisada: {selected.referenceLabel}
+        </p>
+      )}
+      <button
+        type="button"
+        className="address-map-button"
+        aria-label={"Marcar " + purpose + " no mapa"}
+        onClick={() => {
+          cancel();
+          setBusy(false);
+          setOpen(false);
+          setPointOpen(true);
+        }}
+      >
+        <MapPin size={15} />{" "}
+        {selected
+          ? "Ajustar entrada no mapa"
+          : "Marcar entrada no mapa ou informar coordenadas"}
+      </button>
+      {pointOpen && active && (
+        <PointPicker
+          initial={
+            pending ??
+            selected ??
+            results[0] ?? { lat: -23.5505, lon: -46.6333 }
+          }
+          address={
+            selected?.requestedAddress || value.trim() || `Ponto de ${purpose}`
+          }
+          onCancel={() => setPointOpen(false)}
+          onConfirm={(point) => {
+            cancel();
+            setPointOpen(false);
+            const address =
+              selected?.requestedAddress ||
+              value.trim() ||
+              `Ponto de ${purpose}`;
+            const reference = pending ?? selected ?? results[0];
+            onSelect({
+              ...(reference ?? {}),
+              ...point,
+              id: `map:${point.lat}:${point.lon}`,
+              label: address,
+              requestedAddress: address,
+              ...(reference
+                ? {
+                    referenceLabel: reference.referenceLabel ?? reference.label,
+                  }
+                : {}),
+              source: "map",
+              approximate: true,
+            });
+          }}
+        />
       )}
       {busy && (
         <p className="address-status" role="status">
@@ -321,6 +387,11 @@ export default function AddressField({
       {pending && !selected && (
         <div className="address-approximate" role="status">
           <p>
+            {pending.requestedAddress && (
+              <span>
+                Você digitou: <strong>{pending.requestedAddress}</strong>.{" "}
+              </span>
+            )}
             {pending.approximate
               ? "O endereço completo, incluindo o número, não foi confirmado. Confira este ponto aproximado: "
               : "Confira o local antes de continuar: "}

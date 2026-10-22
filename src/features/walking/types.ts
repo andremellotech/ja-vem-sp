@@ -11,4 +11,6 @@ export type WalkingRoute = {
   durationS: number;
   points: Point[];
   steps: WalkingStep[];
+  startGapM?: number;
+  endGapM?: number;
 };

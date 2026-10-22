@@ -28,26 +28,41 @@ export default function WalkingPlanner({
         </p>
       ))}
       {walks.map(({ label, route }) => (
-        <details key={label} open={walks.length === 1}>
-          <summary>
-            {label} ·{" "}
-            {(route.distanceM / 1000).toLocaleString("pt-BR", {
-              maximumFractionDigits: 1,
-            })}{" "}
-            km · cerca de {Math.max(1, Math.round(route.durationS / 60))} min a
-            pé
-          </summary>
-          <ol>
-            {route.steps.map((step, i) => (
-              <li key={i}>
-                {walkingInstruction(step)}
-                {step.distanceM > 0 && (
-                  <small> · {Math.round(step.distanceM)} m</small>
-                )}
-              </li>
-            ))}
-          </ol>
-        </details>
+        <div key={label}>
+          <details open={walks.length === 1}>
+            <summary>
+              {label} ·{" "}
+              {(route.distanceM / 1000).toLocaleString("pt-BR", {
+                maximumFractionDigits: 1,
+              })}{" "}
+              km · cerca de {Math.max(1, Math.round(route.durationS / 60))} min
+              a pé
+            </summary>
+            <ol>
+              {route.steps.map((step, i) => (
+                <li key={i}>
+                  {walkingInstruction(step)}
+                  {step.distanceM > 0 && (
+                    <small> · {Math.round(step.distanceM)} m</small>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </details>
+          {(route.startGapM ?? 0) > 50 && (
+            <p className="walking-warning">
+              O caminho mapeado começa a cerca de {Math.round(route.startGapM!)}{" "}
+              m do ponto inicial. Confira o acesso até ele.
+            </p>
+          )}
+          {(route.endGapM ?? 0) > 50 && (
+            <p className="walking-warning">
+              O caminho mapeado termina a cerca de {Math.round(route.endGapM!)}{" "}
+              m do ponto final indicado. O acesso à entrada não está confirmado;
+              o marcador final preserva o local que você escolheu.
+            </p>
+          )}
+        </div>
       ))}
       <p className="walking-source">
         Caminhada: OpenStreetMap /{" "}

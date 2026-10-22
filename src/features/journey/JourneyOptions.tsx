@@ -19,6 +19,8 @@ type Props = {
   selectedId: string | null;
   origin?: Point | null;
   destination?: Point | null;
+  originLabel?: string;
+  destinationLabel?: string;
   onSelect: (option: JourneyOption) => void;
   onShowArrivals: (stop: Stop, option: JourneyOption) => void;
   onWalk?: (from: Point, to: Point, label: string) => void;
@@ -28,6 +30,8 @@ export default function JourneyOptions({
   selectedId,
   origin,
   destination,
+  originLabel,
+  destinationLabel,
   onSelect,
   onShowArrivals,
   onWalk,
@@ -49,10 +53,14 @@ export default function JourneyOptions({
             "journey-option " +
             (selectedId === option.id ? "journey-option-selected" : "")
           }
-          aria-label={`Opção ${i + 1} · ${option.transferCount ? "1 troca" : "Direto"}`}
+          aria-label={`Opção ${i + 1} · ${option.transferCount ? `${option.transferCount} ${option.transferCount === 1 ? "troca" : "trocas"}` : "Direto"}`}
         >
           <div className="journey-option-title">
-            <strong>{option.transferCount ? "1 troca" : "Direto"}</strong>
+            <strong>
+              {option.transferCount
+                ? `${option.transferCount} ${option.transferCount === 1 ? "troca" : "trocas"}`
+                : "Direto"}
+            </strong>
             <span>Opção {i + 1}</span>
           </div>
           <div className="journey-line-badges">
@@ -86,6 +94,21 @@ export default function JourneyOptions({
             </span>
           </div>
           <ol className="journey-legs">
+            {origin && (
+              <li className="journey-walk-step">
+                <Footprints size={16} />
+                <div>
+                  <small>
+                    Saída · {originLabel || "Ponto de origem escolhido"}
+                  </small>
+                  <p>
+                    Caminhe até <strong>{option.legs[0].from.name}</strong>.{" "}
+                    {distance(option.accessM)} em linha reta; selecione a opção
+                    para ver o caminho pelas ruas.
+                  </p>
+                </div>
+              </li>
+            )}
             {option.legs.map((leg, n) => (
               <li key={leg.tripId + ":" + n}>
                 <p className="journey-direction">
@@ -114,11 +137,27 @@ export default function JourneyOptions({
                   <p className="journey-transfer">
                     {leg.to.id === option.legs[n + 1].from.id
                       ? `Troque neste ponto: ${leg.to.name}`
-                      : `Caminhe de ${leg.to.name} até ${option.legs[n + 1].from.name} (aprox. ${distance(option.transferWalkM ?? 0)} em linha reta). Pode haver nova entrada e cobrança.`}
+                      : `Caminhe de ${leg.to.name} até ${option.legs[n + 1].from.name} (aprox. ${distance(option.transferWalksM?.[n] ?? option.transferWalkM ?? 0)} em linha reta). Pode haver nova entrada e cobrança.`}
                   </p>
                 )}
               </li>
             ))}
+            {destination && (
+              <li className="journey-walk-step">
+                <Footprints size={16} />
+                <div>
+                  <small>
+                    Chegada · {destinationLabel || "Ponto de destino escolhido"}
+                  </small>
+                  <p>
+                    Após desembarcar em{" "}
+                    <strong>{option.legs.at(-1)!.to.name}</strong>, caminhe até
+                    o ponto final indicado. {distance(option.egressM)} em linha
+                    reta; o caminho selecionado aparece no mapa.
+                  </p>
+                </div>
+              </li>
+            )}
           </ol>
           <div className="journey-option-actions">
             <button
@@ -168,19 +207,23 @@ export default function JourneyOptions({
               >
                 <Footprints size={15} /> Ir a pé do desembarque ao destino
               </button>
-              {option.transferWalkM !== undefined && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    onWalk?.(
-                      option.legs[0].to,
-                      option.legs[1].from,
-                      "Caminhada na troca",
-                    )
-                  }
-                >
-                  <Footprints size={15} /> Ver caminhada da troca
-                </button>
+              {option.legs.slice(1).map(
+                (leg, n) =>
+                  option.legs[n].to.id !== leg.from.id && (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() =>
+                        onWalk?.(
+                          option.legs[n].to,
+                          leg.from,
+                          `Caminhada na troca ${n + 1}`,
+                        )
+                      }
+                    >
+                      <Footprints size={15} /> Ver caminhada da troca {n + 1}
+                    </button>
+                  ),
               )}
               <small>
                 Caminhos e instruções no mapa deste site ·
@@ -188,17 +231,21 @@ export default function JourneyOptions({
               </small>
             </div>
           )}
-          {option.transferCount === 1 &&
-            (option.legs[1].mode ?? "bus") === "bus" && (
-              <button
-                className="journey-transfer-arrivals"
-                type="button"
-                aria-label={`Ver chegadas na troca da opção ${i + 1}`}
-                onClick={() => onShowArrivals(option.legs[1].from, option)}
-              >
-                Consultar chegadas na parada da troca <ArrowRight size={14} />
-              </button>
-            )}
+          {option.legs.slice(1).map(
+            (leg, n) =>
+              (leg.mode ?? "bus") === "bus" && (
+                <button
+                  key={n}
+                  className="journey-transfer-arrivals"
+                  type="button"
+                  aria-label={`Ver chegadas na troca ${n + 1} da opção ${i + 1}`}
+                  onClick={() => onShowArrivals(leg.from, option)}
+                >
+                  Consultar chegadas na parada da troca {n + 1}{" "}
+                  <ArrowRight size={14} />
+                </button>
+              ),
+          )}
         </article>
       ))}
       <p className="journey-disclaimer">

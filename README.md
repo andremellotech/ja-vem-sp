@@ -1,6 +1,6 @@
 # Já Vem SP
 
-Site de transporte de São Paulo com origem e destino por endereço, trajetos de caminhada, ônibus, metrô e trem no mapa interno, opções diretas ou com uma troca, busca de linhas, paradas, posições de ônibus, previsões e favoritos locais. Código próprio; não é um produto oficial da SPTrans ou do Moovit.
+Site de transporte de São Paulo com origem e destino por endereço ou ponto marcado, trajetos de caminhada, ônibus, metrô e trem no mapa interno, opções diretas ou com até três baldeações, busca de linhas, paradas, posições de ônibus, previsões e favoritos locais. Código próprio; não é um produto oficial da SPTrans ou do Moovit.
 
 ## Estado real
 
@@ -8,7 +8,11 @@ Site publicado em https://andremellotech.github.io/ja-vem-sp/ e API em https://j
 
 ## Origem e destino
 
-Confirme os dois endereços, ou use o GPS como origem, e clique em **Ver opções de transporte**. O filtro permite todos os modos, somente ônibus ou somente metrô/trem. Resultados aproximados exigem confirmação adicional. A busca considera paradas e estações até 800 m de cada endereço, com ampliação explícita para 1.200 m quando não encontra opções. Mostra até seis alternativas diretas ou com uma troca. Entre ônibus, a troca usa a mesma parada; conexões envolvendo ferrovia podem incluir caminhada de até 250 m em linha reta, sem presumir integração tarifária ou acesso livre. Chegadas SPTrans são oferecidas somente para pernas de ônibus e preservam os endereços para voltar ao trajeto.
+Confirme os dois endereços, ou use o GPS como origem, e clique em **Ver opções de transporte**. O filtro permite todos os modos, somente ônibus ou somente metrô/trem, e de zero a três baldeações (padrão: três). Resultados aproximados exigem confirmação adicional. A busca considera paradas e estações até 800 m de cada ponto, com ampliação explícita para 1.200 m quando não encontra opções. Mostra até seis alternativas. Trocas podem usar a mesma parada ou envolver caminhada de até 250 m em linha reta, inclusive entre ônibus; acesso físico e integração tarifária não são presumidos. Cada alternativa mostra a caminhada inicial, todos os embarques/desembarques e trocas, e a caminhada até o destino escolhido. Chegadas SPTrans são oferecidas somente para pernas de ônibus, inclusive nas diferentes trocas, e preservam os endereços para voltar ao trajeto.
+
+**Marcar entrada no mapa ou informar coordenadas** permite escolher o ponto exato que o visitante quer usar, para origem e destino, preservando o número digitado. Toque no mapa, arraste o marcador ou aplique latitude/longitude. A referência inicial não pode ser confirmada sem uma escolha explícita. Isso não valida que o imóvel tenha aquele número: a interface distingue ponto marcado pelo visitante de endereço confirmado pela base. O destino do planejamento mantém essas coordenadas; não é substituído por uma parada próxima. O acesso do serviço de pedestres pode terminar fora da entrada; desvios maiores que 50 m são avisados, sem desenhar um acesso fictício. GPS e pontos da base também podem ter imprecisão.
+
+O cálculo com limite explícito usa rodadas por embarque, até quatro pernas de transporte, preserva até seis alternativas por fronteira de parada/embarque e apresenta as seis melhores opções encontradas pelo critério escolhido. Esse limite de candidatos mantém o cálculo no navegador e não enumera todas as combinações possíveis nem garante ótimo global. A interface oferece reduzir o limite de baldeações; distâncias de ordenação são em linha reta. Chamadas antigas sem esse limite continuam compatíveis com o cálculo anterior de diretas/uma troca.
 
 **Ver caminhada no mapa** calcula o caminho e as instruções no próprio site. Selecionar uma opção de transporte desenha os trechos GTFS e calcula apenas seus acessos, saída e eventual troca a pé. As formas vêm de `public/data/paths/`, carregadas sob demanda, e a caminhada do perfil de pedestres OSRM/FOSSGIS. Não há chave, cartão, Google API ou fallback pago. Os links **Compare no Google Maps** são uma comparação externa opcional ao final dos resultados.
 

@@ -39,6 +39,22 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
+it("avisa quando o caminho de pedestres termina distante do ponto final solicitado", async () => {
+  const { routeWalking } = await import("../src/features/walking/client");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({ ok: true, json: async () => response }),
+  );
+  const farther = { lat: to.lat + 0.003, lon: to.lon };
+  const result = await routeWalking(
+    from,
+    farther,
+    new AbortController().signal,
+  );
+  expect(result.endGapM).toBeGreaterThan(300);
+  expect(result.endGapM).toBeLessThan(350);
+  expect(result.points.at(-1)).toEqual(to);
+});
 it("usa o perfil de pedestres e entrega geometria, distância e instruções internas", async () => {
   const { routeWalking } = await import("../src/features/walking/client");
   const fetcher = vi
