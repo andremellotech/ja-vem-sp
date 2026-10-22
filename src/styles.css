@@ -1829,6 +1829,97 @@ code {
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+.address-map-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: #285f50;
+  font-weight: 600;
+  text-align: left;
+  margin: 8px 0;
+}
+.point-picker {
+  margin: 12px 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+}
+.point-picker h4 {
+  margin: 0 0 8px;
+}
+.point-picker p {
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  margin: 8px 0;
+}
+.point-picker-map {
+  height: 300px;
+  width: 100%;
+  border-radius: 10px;
+  z-index: 0;
+}
+.address-location-pin {
+  font-size: 28px;
+  line-height: 38px;
+  background: none;
+  border: none;
+}
+.point-picker details {
+  margin-top: 12px;
+}
+.point-picker label {
+  display: block;
+  margin-top: 10px;
+}
+.point-picker input {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.point-picker button {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-top: 10px;
+}
+.point-picker-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.point-picker-actions button:first-child {
+  background: #285f50;
+  color: #fff;
+}
+.point-picker button:disabled {
+  opacity: 0.5;
+}
+.journey-walk-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 0;
+}
+.journey-walk-step > svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.journey-walk-step small {
+  display: block;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.journey-walk-step p {
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 6px 0;
+}
 .address-results li + li {
   border-top: 1px solid #e1e7db;
 }

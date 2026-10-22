@@ -4,7 +4,9 @@ export type Place = Point & {
   id: string;
   label: string;
   approximate: boolean;
-  source: "photon" | "device";
+  source: "photon" | "device" | "map";
+  requestedAddress?: string;
+  referenceLabel?: string;
   city?: string;
   district?: string;
   locality?: string;
@@ -61,6 +63,7 @@ export type PlanInput = {
   radiusM: 800 | 1200;
   criterion?: "transfers" | "walking";
   transport?: "all" | "bus" | "rail";
+  maxTransfers?: 0 | 1 | 2 | 3;
 };
 export type JourneyLeg = {
   tripId: string;
@@ -82,9 +85,10 @@ export type JourneyOption = {
   legs: JourneyLeg[];
   accessM: number;
   egressM: number;
-  transferCount: 0 | 1;
+  transferCount: 0 | 1 | 2 | 3;
   stopCount: number;
   transferWalkM?: number;
+  transferWalksM?: number[];
 };
 export type PlannerResult = {
   options: JourneyOption[];

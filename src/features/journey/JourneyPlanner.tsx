@@ -63,6 +63,7 @@ export default function JourneyPlanner({
     "transfers",
   );
   const [transport, setTransport] = useState<"all" | "bus" | "rail">("all");
+  const [maxTransfers, setMaxTransfers] = useState<0 | 1 | 2 | 3>(3);
   const [preferencesChanged, setPreferencesChanged] = useState(false);
   const [pathsBusy, setPathsBusy] = useState(false),
     [walks, setWalks] = useState<LabeledWalk[]>([]),
@@ -158,7 +159,7 @@ export default function JourneyPlanner({
       ...option.legs.slice(1).map((l, i) => ({
         from: option.legs[i].to,
         to: l.from,
-        label: "Caminhada na troca",
+        label: `Caminhada na troca ${i + 1}`,
       })),
       {
         from: option.legs[option.legs.length - 1].to,
@@ -338,6 +339,7 @@ export default function JourneyPlanner({
           radiusM,
           criterion,
           transport,
+          maxTransfers,
         },
         c.signal,
       );
@@ -389,7 +391,7 @@ export default function JourneyPlanner({
             cancelGps();
             resetPlan();
             setOrigin(place);
-            setOriginText(place.label);
+            setOriginText(place.requestedAddress ?? place.label);
           }}
         />
         <div className="journey-between">
@@ -438,7 +440,7 @@ export default function JourneyPlanner({
           onSelect={(place) => {
             resetPlan();
             setDestination(place);
-            setDestinationText(place.label);
+            setDestinationText(place.requestedAddress ?? place.label);
           }}
         />
         <label className="journey-priority" htmlFor="journey-priority">
@@ -476,6 +478,22 @@ export default function JourneyPlanner({
             transporte para aplicar os novos filtros.
           </p>
         )}
+        <label className="journey-priority" htmlFor="journey-transfers">
+          Baldeações
+          <select
+            id="journey-transfers"
+            value={maxTransfers}
+            onChange={(e) => {
+              invalidatePending();
+              setMaxTransfers(Number(e.target.value) as 0 | 1 | 2 | 3);
+            }}
+          >
+            <option value="0">Somente trajetos diretos</option>
+            <option value="1">Até 1 baldeação</option>
+            <option value="2">Até 2 baldeações</option>
+            <option value="3">Até 3 baldeações</option>
+          </select>
+        </label>
         <button
           type="button"
           className="journey-submit"
@@ -512,7 +530,11 @@ export default function JourneyPlanner({
           .
         </p>
         <p className="journey-search-note">
-          São Paulo · diretos e até uma troca · paradas e estações em até 800 m.{" "}
+          São Paulo ·{" "}
+          {maxTransfers === 0
+            ? "somente diretos"
+            : `até ${maxTransfers} ${maxTransfers === 1 ? "baldeação" : "baldeações"}`}{" "}
+          · paradas e estações em até 800 m.{" "}
           {criterion === "walking"
             ? "Menor caminhada, depois menos trocas e menos paradas."
             : "Menos trocas, depois menor caminhada e menos paradas."}{" "}
@@ -564,9 +586,9 @@ export default function JourneyPlanner({
             <Info size={22} />
             <h3>Nenhuma opção neste alcance</h3>
             <p>
-              Não encontramos um trajeto com até uma troca e paradas em até{" "}
-              {result.radiusM === 800 ? "800" : "1.200"} m de cada endereço.
-              Isso não significa ausência de transporte.
+              Não encontramos um trajeto com o limite de baldeações escolhido e
+              paradas em até {result.radiusM === 800 ? "800" : "1.200"} m de
+              cada endereço. Isso não significa ausência de transporte.
             </p>
             {result.radiusM === 800 && (
               <button type="button" onClick={() => void calculate(1200)}>
@@ -581,6 +603,8 @@ export default function JourneyPlanner({
           options={result.options}
           origin={origin}
           destination={destination}
+          originLabel={origin?.requestedAddress ?? origin?.label}
+          destinationLabel={destination?.requestedAddress ?? destination?.label}
           selectedId={selectedId}
           onSelect={(option) => {
             choose(option);

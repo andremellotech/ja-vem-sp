@@ -2,6 +2,7 @@ import { distanceM } from "../stops/network";
 import { activeServices } from "./calendar";
 import type { PlannerIndex } from "./data";
 import type { Stop } from "../../contracts";
+import { findMultiJourneys } from "./multi-router";
 import {
   PlannerError,
   type JourneyLeg,
@@ -30,6 +31,8 @@ export function findJourneys(
     !validPoint(input.origin) ||
     !validPoint(input.destination) ||
     ![800, 1200].includes(input.radiusM) ||
+    (input.maxTransfers !== undefined &&
+      ![0, 1, 2, 3].includes(input.maxTransfers)) ||
     (input.transport !== undefined &&
       !["all", "bus", "rail"].includes(input.transport))
   )
@@ -53,6 +56,8 @@ export function findJourneys(
       return services.has(t.serviceId) && allowed ? [i] : [];
     }),
   );
+  if (input.maxTransfers !== undefined)
+    return findMultiJourneys(index, input, active);
   const nearest = (p: Point) =>
     index.stops
       .nearest(p.lat, p.lon, input.radiusM, index.stops.all.length)

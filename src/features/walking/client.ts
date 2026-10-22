@@ -1,5 +1,6 @@
 import type { Point } from "../journey/types";
 import type { WalkingRoute, WalkingStep } from "./types";
+import { distanceM } from "../stops/network";
 const cache = new Map<string, WalkingRoute>();
 let tail: Promise<unknown> = Promise.resolve(),
   nextStart = 0;
@@ -125,6 +126,18 @@ export async function routeWalking(
           durationS: route.duration,
           points,
           steps,
+          startGapM: distanceM(
+            from.lat,
+            from.lon,
+            points[0].lat,
+            points[0].lon,
+          ),
+          endGapM: distanceM(
+            to.lat,
+            to.lon,
+            points.at(-1)!.lat,
+            points.at(-1)!.lon,
+          ),
         };
         cache.set(key, result);
         return result;

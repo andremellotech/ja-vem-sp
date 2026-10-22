@@ -26,7 +26,7 @@ export async function confirmEndpoints() {
   );
   fireEvent.change(
     screen.getByRole("combobox", { name: "Para onde você vai?" }),
-    { target: { value: "Rua Destino, 1000" } },
+    { target: { value: "Rua Destino, n. 1000" } },
   );
   fireEvent.click(screen.getByRole("button", { name: "Localizar destino" }));
   fireEvent.click(
