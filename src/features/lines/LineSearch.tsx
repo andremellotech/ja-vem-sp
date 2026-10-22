@@ -51,7 +51,8 @@ export default function LineSearch({
     if (selected >= 0)
       refs.current[selected]?.scrollIntoView?.({ block: "nearest" });
   }, [selected]);
-  const matches = active && open ? searchCatalog(catalog, value) : [];
+  const allMatches = active && open ? searchCatalog(catalog, value) : [];
+  const matches = allMatches.slice(0, 8);
   function choose(line: Line) {
     setOpen(false);
     setSelected(-1);
@@ -67,7 +68,7 @@ export default function LineSearch({
           onSubmit();
         }}
       >
-        <label htmlFor="line-search">BUSQUE SUA LINHA</label>
+        <label htmlFor="line-search">BUSQUE LINHAS E PARADAS</label>
         <div className="search-input">
           <Search size={20} />
           <input
@@ -83,7 +84,7 @@ export default function LineSearch({
                 : undefined
             }
             autoComplete="off"
-            placeholder="Código, nome ou terminal"
+            placeholder="Linha, destino, parada ou rua"
             value={value}
             onFocus={() => setOpen(true)}
             onChange={(e) => {
@@ -151,6 +152,19 @@ export default function LineSearch({
             </button>
           ))}
         </div>
+      )}
+      {allMatches.length > matches.length && (
+        <button
+          type="button"
+          className="search-more"
+          onClick={() => {
+            setOpen(false);
+            setSelected(-1);
+            onSubmit();
+          }}
+        >
+          Ver todas as {allMatches.length} linhas encontradas
+        </button>
       )}
       {error && (
         <p className="muted">

@@ -6,6 +6,38 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
+it("oferece acesso a todas as linhas quando as sugestões ultrapassam oito", async () => {
+  const rows = Array.from({ length: 12 }, (_, i) => ({
+    id: String(i),
+    code: `${8000 + i}-10`,
+    name: "Centro",
+    origin: "Bairro",
+    destination: "Centro",
+    direction: 1,
+  }));
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      Response.json({ version: 1, retrievedAt: "2026-10-20", lines: rows }),
+    ),
+  );
+  const submit = vi.fn();
+  render(
+    <LineSearch
+      value="centro"
+      onChange={() => {}}
+      onSelect={() => {}}
+      onSubmit={submit}
+    />,
+  );
+  const all = await screen.findByRole("button", {
+    name: "Ver todas as 12 linhas encontradas",
+  });
+  expect(screen.getAllByRole("option")).toHaveLength(8);
+  fireEvent.click(all);
+  expect(submit).toHaveBeenCalledOnce();
+  expect(screen.queryByRole("option")).toBeNull();
+});
 it("sugere catálogo local com teclado, cancela ao esconder e preserva busca manual", async () => {
   const line = {
     id: "1",

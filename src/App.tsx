@@ -40,6 +40,7 @@ import LineSchedule from "./features/schedules/LineSchedule";
 import type { JourneyMapSelection, Point } from "./features/journey/types";
 import { loadStopsForLine } from "./features/journey/line-stops";
 import { loadNetwork, type NetStopIndex } from "./features/stops/network";
+import { searchTransit } from "./features/search/transit";
 import {
   loadFavorites,
   saveFavorites,
@@ -119,6 +120,13 @@ export default function App({
     "loading",
   );
   const [lineStopNote, setLineStopNote] = useState("");
+  const [searchNote, setSearchNote] = useState("");
+  const [searchIncomplete, setSearchIncomplete] = useState(false);
+  const [lineCount, setLineCount] = useState(20);
+  const [stopCount, setStopCount] = useState(20);
+  const networkRequest = useRef<Promise<NetStopIndex | null>>(
+    Promise.resolve(null),
+  );
   const [switching, setSwitching] = useState(false);
   const [manualRefreshing, setManualRefreshing] = useState(false);
   const lineRefresh = useRef<(() => Promise<void>) | null>(null);
@@ -161,13 +169,24 @@ export default function App({
     const base =
       (import.meta as ImportMeta & { env: Record<string, string> }).env
         .BASE_URL || "./";
-    loadNetwork(base + "data/stops.json", c.signal)
-      .then((n) => setNetwork(n))
-      .catch(() => {});
+    networkRequest.current = loadNetwork(
+      base + "data/stops.json",
+      c.signal,
+    ).catch(() => null);
+    networkRequest.current.then((n) => {
+      if (!c.signal.aborted) setNetwork(n);
+    });
     return () => c.abort();
   }, []);
   const searchController = useRef<AbortController | null>(null),
     generation = useRef(0);
+  const cancelSearch = useCallback(() => {
+    generation.current++;
+    searchController.current?.abort();
+    setBusy(false);
+    setStopsBusy(false);
+    setSwitching(false);
+  }, []);
   useEffect(() => {
     if (!apiBase) return;
     const c = new AbortController();
@@ -189,6 +208,8 @@ export default function App({
     setVehicles([]);
     setStop(null);
     setError("");
+    setSearchNote("");
+    setSearchIncomplete(false);
     setTab(next);
     setView("list");
     setJourneySelection(null);
@@ -214,6 +235,8 @@ export default function App({
     setSwitching(false);
     setSearched(false);
     setError("");
+    setSearchNote("");
+    setSearchIncomplete(false);
     setLines([]);
     setFoundStops([]);
     setLine(null);
@@ -242,6 +265,10 @@ export default function App({
     searchController.current = c;
     setBusy(true);
     setError("");
+    setSearchNote("");
+    setSearchIncomplete(false);
+    setLineCount(20);
+    setStopCount(20);
     setSearched(true);
     setLine(null);
     setStops([]);
@@ -252,35 +279,23 @@ export default function App({
     setStop(null);
     setLines([]);
     setStopsBusy(true);
-    request<Stop[]>(apiBase, "/api/stops?q=" + encodeURIComponent(q), c.signal)
-      .then((s) => {
-        if (current === generation.current)
-          setFoundStops(s.data.filter(validStop));
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (current === generation.current) setStopsBusy(false);
-      });
-    try {
-      const r = await request<Line[]>(
-        apiBase,
-        "/api/lines?q=" + encodeURIComponent(q),
-        c.signal,
-      );
-      if (current === generation.current) {
-        setLines(r.data);
-        setOnline(true);
-      }
-    } catch (e) {
-      if (current === generation.current && !c.signal.aborted)
-        setError(
-          e instanceof ApiError
-            ? e.message
-            : "Não foi possível conectar. Confira sua internet e tente novamente.",
-        );
-    } finally {
-      if (current === generation.current) setBusy(false);
-    }
+    await searchTransit({
+      query: q,
+      base: new URL(import.meta.env.BASE_URL, window.location.href).href,
+      apiBase,
+      network: network ? Promise.resolve(network) : networkRequest.current,
+      signal: c.signal,
+      onUpdate: (result) => {
+        if (current !== generation.current || c.signal.aborted) return;
+        setLines(result.lines);
+        setFoundStops(result.stops);
+        setBusy(result.linesLoading);
+        setStopsBusy(result.stopsLoading);
+        setSearchNote(result.note);
+        setSearchIncomplete(result.incomplete);
+        if (result.liveLinesReady) setOnline(true);
+      },
+    });
   };
   useEffect(() => {
     if (!line) return;
@@ -431,11 +446,15 @@ export default function App({
   }, [stop, line, apiBase]);
   const stopsRef = useRef<Stop[]>([]);
   stopsRef.current = stops;
-  const selectStop = useCallback((id: string) => {
-    setStop(id);
-    setTab("search");
-    setView("list");
-  }, []);
+  const selectStop = useCallback(
+    (id: string) => {
+      cancelSearch();
+      setStop(id);
+      setTab("search");
+      setView("list");
+    },
+    [cancelSearch],
+  );
   async function refreshNow() {
     if (manualRefreshing) return;
     setManualRefreshing(true);
@@ -536,7 +555,11 @@ export default function App({
     tab === "favorites"
       ? savedLines.filter((l) => favorites.includes(l.id))
       : lines;
-  const mapStops = line ? stops : foundStops;
+  const mapStops = line
+    ? stops
+    : mode === "lines" && tab === "search"
+      ? foundStops.slice(0, stopCount)
+      : foundStops;
   const selectedStop: { id: string; name: string } | undefined =
     mapStops.find((s) => s.id === stop) ??
     (stop ? network?.byId.get(stop) : undefined);
@@ -778,7 +801,7 @@ export default function App({
               {busy && (
                 <div className="loading">
                   <span className="spinner" />
-                  Buscando linhas na SPTrans…
+                  Buscando linhas e paradas…
                 </div>
               )}
               {error && (
@@ -789,6 +812,11 @@ export default function App({
                     <p>{error}</p>
                   </div>
                 </div>
+              )}
+              {searchNote && !line && tab === "search" && (
+                <p className="search-note" role="status">
+                  {searchNote}
+                </p>
               )}
               {line ? (
                 <>
@@ -894,53 +922,79 @@ export default function App({
               ) : (
                 <>
                   {tab === "search" && arrivalCard}
-                  {visibleLines.map((l) => (
-                    <div className="line-result" key={l.id}>
-                      <button
-                        className="line-result-main"
-                        onClick={() => setLine(l)}
-                      >
-                        <span className="line-code">
-                          <BusFront size={15} />
-                          {l.code}
-                        </span>
-                        <strong>{l.destination}</strong>
-                        <small>
-                          {l.origin} · sentido {l.direction}
-                        </small>
-                        <ChevronRight size={19} />
-                      </button>
-                      <button
-                        className={
-                          "favorite-btn " +
-                          (favorites.includes(l.id) ? "is-favorite" : "")
-                        }
-                        onClick={() => favorite(l.id)}
-                        aria-label={
-                          (favorites.includes(l.id)
-                            ? "Remover favorito "
-                            : "Favoritar ") + l.code
-                        }
-                        aria-pressed={favorites.includes(l.id)}
-                      >
-                        <Heart
-                          size={17}
-                          fill={
-                            favorites.includes(l.id) ? "currentColor" : "none"
+                  {tab === "search" && searched && !!lines.length && (
+                    <p className="search-count">
+                      {Math.min(lineCount, lines.length)} de {lines.length}{" "}
+                      linhas e sentidos encontrados
+                    </p>
+                  )}
+                  {visibleLines
+                    .slice(
+                      0,
+                      tab === "favorites" ? visibleLines.length : lineCount,
+                    )
+                    .map((l) => (
+                      <div className="line-result" key={l.id}>
+                        <button
+                          className="line-result-main"
+                          onClick={() => {
+                            cancelSearch();
+                            setLine(l);
+                          }}
+                        >
+                          <span className="line-code">
+                            <BusFront size={15} />
+                            {l.code}
+                          </span>
+                          <strong>{l.destination}</strong>
+                          <small>
+                            {l.origin} · sentido {l.direction}
+                          </small>
+                          <ChevronRight size={19} />
+                        </button>
+                        <button
+                          className={
+                            "favorite-btn " +
+                            (favorites.includes(l.id) ? "is-favorite" : "")
                           }
-                        />
-                      </button>
-                    </div>
-                  ))}
+                          onClick={() => favorite(l.id)}
+                          aria-label={
+                            (favorites.includes(l.id)
+                              ? "Remover favorito "
+                              : "Favoritar ") + l.code
+                          }
+                          aria-pressed={favorites.includes(l.id)}
+                        >
+                          <Heart
+                            size={17}
+                            fill={
+                              favorites.includes(l.id) ? "currentColor" : "none"
+                            }
+                          />
+                        </button>
+                      </div>
+                    ))}
+                  {tab === "search" && visibleLines.length > lineCount && (
+                    <button
+                      className="search-more"
+                      onClick={() => setLineCount((n) => n + 20)}
+                    >
+                      Mostrar mais linhas
+                    </button>
+                  )}
                   {tab === "search" && foundStops.length > 0 && (
                     <>
-                      <div className="guide-label">PARADAS ENCONTRADAS</div>
+                      <div className="guide-label">
+                        PARADAS ENCONTRADAS ·{" "}
+                        {Math.min(stopCount, foundStops.length)} DE{" "}
+                        {foundStops.length}
+                      </div>
                       <div className="stop-list">
-                        {foundStops.map((s) => (
+                        {foundStops.slice(0, stopCount).map((s) => (
                           <button
                             className={stop === s.id ? "stop selected" : "stop"}
                             key={s.id}
-                            onClick={() => setStop(s.id)}
+                            onClick={() => selectStop(s.id)}
                           >
                             <span className="stop-number">
                               <MapPin size={12} />
@@ -957,6 +1011,14 @@ export default function App({
                           </button>
                         ))}
                       </div>
+                      {foundStops.length > stopCount && (
+                        <button
+                          className="search-more"
+                          onClick={() => setStopCount((n) => n + 20)}
+                        >
+                          Mostrar mais paradas
+                        </button>
+                      )}
                     </>
                   )}
                   {!busy &&
@@ -968,7 +1030,11 @@ export default function App({
                     !foundStops.length && (
                       <div className="empty-state">
                         <Search />
-                        <h3>Nenhuma linha ou parada encontrada</h3>
+                        <h3>
+                          {searchIncomplete
+                            ? "Nenhum resultado nas fontes disponíveis"
+                            : "Nenhuma linha ou parada encontrada"}
+                        </h3>
                         <p>Tente outro número, nome de parada ou endereço.</p>
                       </div>
                     )}

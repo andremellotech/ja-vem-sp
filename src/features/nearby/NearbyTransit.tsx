@@ -27,7 +27,13 @@ export default function NearbyTransit({
     [loading, setLoading] = useState(false),
     [locating, setLocating] = useState(false),
     [radius, setRadius] = useState(800),
-    [retry, setRetry] = useState(0);
+    [retry, setRetry] = useState(0),
+    [stopCount, setStopCount] = useState(8),
+    [lineCount, setLineCount] = useState(8);
+  useEffect(() => {
+    setStopCount(8);
+    setLineCount(8);
+  }, [location?.lat, location?.lon, radius]);
   useEffect(() => {
     setRadius(800);
   }, [location?.lat, location?.lon]);
@@ -74,7 +80,6 @@ export default function NearbyTransit({
       );
       setResult(found);
       setError("");
-      onStopsChange(found.stops.slice(0, 8));
     } catch (e) {
       setResult(null);
       onStopsChange([]);
@@ -85,6 +90,9 @@ export default function NearbyTransit({
       );
     }
   }, [index, location?.lat, location?.lon, radius, active, onStopsChange]);
+  useEffect(() => {
+    if (active) onStopsChange(result?.stops.slice(0, stopCount) ?? []);
+  }, [result, stopCount, active, onStopsChange]);
   async function locate() {
     setLocating(true);
     try {
@@ -140,9 +148,9 @@ export default function NearbyTransit({
             {!result.stops.length && (
               <p>Nenhuma parada de ônibus encontrada neste alcance.</p>
             )}
-            <h3>Paradas próximas</h3>
+            <h3>Paradas próximas · {result.stops.length}</h3>
             <div className="nearby-list">
-              {result.stops.slice(0, 8).map((s) => (
+              {result.stops.slice(0, stopCount).map((s) => (
                 <button key={s.id} onClick={() => onSelectStop(s)}>
                   <strong>{s.name}</strong>
                   <small>
@@ -154,9 +162,17 @@ export default function NearbyTransit({
                 </button>
               ))}
             </div>
-            <h3>Linhas próximas</h3>
+            {result.stops.length > stopCount && (
+              <button
+                className="search-more"
+                onClick={() => setStopCount((n) => n + 8)}
+              >
+                Mostrar mais paradas próximas
+              </button>
+            )}
+            <h3>Linhas próximas · {result.lines.length}</h3>
             <div className="nearby-list">
-              {result.lines.slice(0, 8).map((l) => (
+              {result.lines.slice(0, lineCount).map((l) => (
                 <button
                   key={l.code + "|" + l.headsign}
                   onClick={() => onSelectLine(l.code)}
@@ -171,6 +187,14 @@ export default function NearbyTransit({
                 </button>
               ))}
             </div>
+            {result.lines.length > lineCount && (
+              <button
+                className="search-more"
+                onClick={() => setLineCount((n) => n + 8)}
+              >
+                Mostrar mais linhas próximas
+              </button>
+            )}
             {radius === 800 && (
               <button className="nearby-expand" onClick={() => setRadius(1200)}>
                 Ampliar busca para 1.200 m

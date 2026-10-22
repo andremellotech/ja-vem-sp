@@ -18,6 +18,47 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
 });
+it("permite ver todas as paradas e linhas próximas além das oito iniciais", async () => {
+  const points = Array.from({ length: 12 }, (_, i) => ({
+    ...networkStops[0],
+    id: "p" + i,
+    name: "Ponto " + i,
+    lat: networkStops[0].lat + i * 0.0001,
+  }));
+  vi.mocked(loadLineIndex).mockResolvedValue(
+    createPlannerIndex(
+      fixture(points.map((s, i) => trip("L" + i, [s.id, "D"]))),
+      [...points, networkStops[2]],
+    ),
+  );
+  const changed = vi.fn();
+  render(
+    <NearbyTransit
+      location={networkStops[0]}
+      onLocate={async () => null}
+      onSelectStop={() => {}}
+      onSelectLine={() => {}}
+      onStopsChange={changed}
+    />,
+  );
+  await screen.findByRole("button", { name: /Ponto 0.*Ver chegadas/ });
+  expect(screen.queryByText("Ponto 11", { exact: true })).toBeNull();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Mostrar mais paradas próximas" }),
+  );
+  expect(screen.getByText("Ponto 11", { exact: true })).toBeTruthy();
+  await waitFor(() =>
+    expect(changed).toHaveBeenLastCalledWith(
+      expect.arrayContaining([expect.objectContaining({ id: "p11" })]),
+    ),
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Mostrar mais linhas próximas" }),
+  );
+  expect(
+    screen.getByRole("button", { name: /L11.*Consultar linha/ }),
+  ).toBeTruthy();
+});
 it("usa índice compartilhado, amplia explicitamente e abre ponto/linha sem traduzir sentido", async () => {
   const farther = { ...networkStops[0], lat: networkStops[0].lat + 0.009 };
   vi.mocked(loadLineIndex).mockResolvedValue(

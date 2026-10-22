@@ -194,6 +194,14 @@ describe("API de transporte", () => {
     expect((await handleRequest(req("/api/stops?q=" + "a".repeat(101)), env, f)).status).toBe(400);
     expect(f).not.toHaveBeenCalled();
   });
+  it("preserva todas as paradas válidas do fornecedor depois das cinquenta primeiras", async () => {
+    const fetcher = async (input: RequestInfo | URL) => String(input).includes("Autenticar")
+      ? new Response("true", { headers: cookieHeaders })
+      : Response.json(Array.from({ length: 65 }, (_, i) => ({ cp: 100 + i, np: "Parada " + i, py: -23.5, px: -46.6 })));
+    const result = await createSptrans("fixture", fetcher as typeof fetch).searchStops("Paulista");
+    expect(result.data).toHaveLength(65);
+    expect(result.data.at(-1)?.id).toBe("164");
+  });
   it("transforma falha de rede em erro sem segredos", async () => {
     const f = async () => {
       throw Error("secret-fixture network");

@@ -1,10 +1,5 @@
 import type { Line } from "../../contracts";
-const normalize = (s: string) =>
-  s
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]/gi, "")
-    .toLowerCase();
+import { compactSearch, matchesSearch } from "../search/text";
 export function parseLineCatalog(value: unknown): Line[] {
   const v = value as {
     version?: unknown;
@@ -36,18 +31,15 @@ export function parseLineCatalog(value: unknown): Line[] {
   return v.lines as Line[];
 }
 export function searchCatalog(lines: Line[], query: string): Line[] {
-  const q = normalize(query);
+  const q = compactSearch(query);
   if (q.length < 2) return [];
   return lines
     .filter((l) =>
-      [l.code, l.name, l.origin, l.destination].some((s) =>
-        normalize(s).includes(q),
-      ),
+      matchesSearch([l.name, l.origin, l.destination], query, [l.code]),
     )
     .sort(
       (a, b) =>
-        Number(normalize(b.code).startsWith(q)) -
-        Number(normalize(a.code).startsWith(q)),
-    )
-    .slice(0, 8);
+        Number(compactSearch(b.code).startsWith(q)) -
+        Number(compactSearch(a.code).startsWith(q)),
+    );
 }
