@@ -19,6 +19,31 @@ const stops = [
   },
 ];
 afterEach(cleanup);
+it("combina as palavras da referência em qualquer ordem e preserva paradas homônimas", () => {
+  render(
+    <StopPicker
+      stops={[
+        ...stops,
+        {
+          ...stops[0],
+          id: "outro-trecho",
+          address: "R. Bernardino de Campos, 1000",
+        },
+      ]}
+      selectedId={null}
+      onSelect={() => {}}
+      location={null}
+      onLocate={() => {}}
+    />,
+  );
+  fireEvent.change(screen.getByLabelText("Buscar parada nesta linha"), {
+    target: { value: "Campos rua Bernardino" },
+  });
+  expect(screen.getAllByRole("button", { name: /MORUMBI C\/B/ })).toHaveLength(
+    2,
+  );
+  expect(screen.queryByRole("button", { name: /Outro ponto/ })).toBeNull();
+});
 it("encontra e identifica uma parada pela rua de referência, mesmo com prefixo abreviado", () => {
   const onSelect = vi.fn();
   render(

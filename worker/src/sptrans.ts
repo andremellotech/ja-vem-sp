@@ -165,7 +165,6 @@ export function createSptrans(token: string, fetcher: typeof fetch = fetch) {
       return wrap(
         rows
           .filter((r) => coord(r) && r.cp != null)
-          .slice(0, 50)
           .map((r) => {
             const address = String(r.ed || "").trim();
             return {

@@ -47,12 +47,23 @@ it("valida o catálogo completo e rejeita IDs duplicados ou sentido inválido", 
   ).toThrow();
 });
 import snapshot from "../public/data/lines.json";
-it("mantém os 2698 sentidos auditados e limita as sugestões locais a oito", () => {
+it("mantém os 2698 sentidos auditados e permite consultar todas as correspondências", () => {
   const catalog = parseLineCatalog(snapshot);
   expect(catalog).toHaveLength(2698);
   expect(new Set(catalog.map((l) => l.code)).size).toBe(1349);
   expect(searchCatalog(catalog, "857c10").map((l) => l.direction)).toEqual([
     1, 2,
   ]);
-  expect(searchCatalog(catalog, "term")).toHaveLength(8);
+  expect(searchCatalog(catalog, "term").length).toBeGreaterThan(8);
+});
+it("combina código, origem e destino sem exigir ordem, acento ou abreviação exata", () => {
+  for (const query of [
+    "conceicao campo limpo",
+    "terminal campo limpo",
+    "857c - 10 metro conceicao",
+  ])
+    expect(searchCatalog(lines, query).map((l) => l.id)).toEqual([
+      "1",
+      "32769",
+    ]);
 });

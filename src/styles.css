@@ -2276,6 +2276,30 @@ code {
   margin-top: 8px;
   background: #fff;
 }
+.search-more {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: #294a24;
+  background: #f3f7ed;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.search-count,
+.search-note {
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 12px 0;
+}
+.search-note {
+  padding: 12px;
+  border-radius: 8px;
+  background: #fff8e7;
+}
 .line-suggestions button,
 .nearby-list button {
   display: block;
