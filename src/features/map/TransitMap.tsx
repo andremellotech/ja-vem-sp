@@ -3,7 +3,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Stop, Vehicle } from "../../contracts";
 import type { NetStopIndex } from "../stops/network";
-import type { JourneyMapSelection } from "../journey/types";
+import type { JourneyMapSelection, JourneyFocus } from "../journey/types";
 const MIN_ZOOM = 15,
   MAX_DRAWN = 700;
 interface Props {
@@ -14,6 +14,7 @@ interface Props {
   location: [number, number] | null;
   network?: NetStopIndex | null;
   journey?: JourneyMapSelection | null;
+  journeyFocus?: JourneyFocus | null;
 }
 export default function TransitMap({
   stops,
@@ -23,6 +24,7 @@ export default function TransitMap({
   location,
   network = null,
   journey = null,
+  journeyFocus = null,
 }: Props) {
   const host = useRef<HTMLDivElement>(null),
     map = useRef<L.Map | null>(null),
@@ -39,6 +41,9 @@ export default function TransitMap({
     userFocused: false,
   });
   const pendingBounds = useRef<L.LatLngBounds | null>(null);
+  const boundsZoom = useRef(15);
+  const handledStepFocus = useRef("");
+  const requestedStepFocus = useRef("");
   const pendingFocus = useRef<{ point: L.LatLngTuple; zoom: number } | null>(
     null,
   );
@@ -49,7 +54,10 @@ export default function TransitMap({
       m.setView(pendingFocus.current.point, pendingFocus.current.zoom);
       pendingFocus.current = null;
     } else if (pendingBounds.current) {
-      m.fitBounds(pendingBounds.current, { padding: [40, 40], maxZoom: 15 });
+      m.fitBounds(pendingBounds.current, {
+        padding: [40, 40],
+        maxZoom: boundsZoom.current,
+      });
       pendingBounds.current = null;
     }
   }
@@ -73,6 +81,7 @@ export default function TransitMap({
     m.on("moveend", () => setView((v) => v + 1));
     // A later GPS response must not undo a deliberate map movement.
     const preserveView = () => {
+      handledStepFocus.current = requestedStepFocus.current;
       fleetFitted.current.userFocused = true;
       pendingBounds.current = null;
       pendingFocus.current = null;
@@ -166,6 +175,7 @@ export default function TransitMap({
     const key = journey
       ? "journey:" +
         JSON.stringify([
+          journey.id,
           journey.origin,
           journey.destination,
           journey.mode,
@@ -199,6 +209,7 @@ export default function TransitMap({
       const points = framing.map((s) => [s.lat, s.lon] as L.LatLngTuple);
       pendingFocus.current = null;
       pendingBounds.current = L.latLngBounds(points);
+      boundsZoom.current = 15;
       fitted.current = key;
       fitWhenVisible(m);
     } else if (!key && fitted.current) {
@@ -213,6 +224,8 @@ export default function TransitMap({
     if (!group) return;
     group.clearLayers();
     if (!journey) return;
+    const focusedId =
+      journeyFocus?.journeyId === journey.id ? journeyFocus?.stepId : null;
     for (const path of journey.paths ?? []) {
       const color =
         path.kind === "walk"
@@ -228,8 +241,8 @@ export default function TransitMap({
         path.points.map((p) => [p.lat, p.lon] as L.LatLngTuple),
         {
           color,
-          weight: path.kind === "walk" ? 4 : 5,
-          opacity: 0.9,
+          weight: focusedId === path.id ? 7 : path.kind === "walk" ? 4 : 5,
+          opacity: focusedId && focusedId !== path.id ? 0.4 : 0.9,
           ...(path.kind === "walk" ? { dashArray: "7 8" } : {}),
         },
       ).addTo(group);
@@ -272,7 +285,45 @@ export default function TransitMap({
       );
     mark(journey.origin, "Origem do trajeto", "#3478d7", 9);
     mark(journey.destination, "Destino do trajeto", "#df7137", 9);
-  }, [journey, selectedStop, onSelectStop]);
+  }, [
+    journey,
+    selectedStop,
+    onSelectStop,
+    journeyFocus?.journeyId,
+    journeyFocus?.stepId,
+  ]);
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !journey?.id || journeyFocus?.journeyId !== journey.id) return;
+    const key = `${journey.id}:${journeyFocus.request}:${journeyFocus.stepId ?? "all"}`;
+    requestedStepFocus.current = key;
+    if (handledStepFocus.current === key) return;
+    fleetFitted.current.userFocused = true;
+    pendingBounds.current = null;
+    pendingFocus.current = null;
+    const step = journey.steps?.find((s) => s.id === journeyFocus.stepId);
+    if (journeyFocus.stepId && (!step || step.status === "loading")) return;
+    const path = journey.paths?.find((p) => p.id === journeyFocus.stepId);
+    const points = step
+      ? (path?.points ?? [step.from, step.to])
+      : [
+          journey.origin,
+          journey.destination,
+          ...(journey.paths ?? []).flatMap((p) => p.points),
+          ...(journey.steps ?? []).flatMap((s) => [s.from, s.to]),
+        ];
+    pendingBounds.current = L.latLngBounds(
+      points.map((p) => [p.lat, p.lon] as L.LatLngTuple),
+    );
+    boundsZoom.current = step ? 18 : 15;
+    handledStepFocus.current = key;
+    fitWhenVisible(m);
+  }, [
+    journey,
+    journeyFocus?.journeyId,
+    journeyFocus?.stepId,
+    journeyFocus?.request,
+  ]);
   useEffect(() => {
     const g = netLayer.current,
       m = map.current;
@@ -311,6 +362,7 @@ export default function TransitMap({
       stops.find((x) => x.id === selectedStop) ??
       (selectedStop ? network?.byId.get(selectedStop) : undefined);
     if (s && map.current) {
+      handledStepFocus.current = requestedStepFocus.current;
       fleetFitted.current.userFocused = true;
       pendingBounds.current = null;
       pendingFocus.current = {
@@ -322,6 +374,7 @@ export default function TransitMap({
   }, [selectedStop]);
   useEffect(() => {
     if (location && map.current) {
+      handledStepFocus.current = requestedStepFocus.current;
       fleetFitted.current.userFocused = true;
       pendingBounds.current = null;
       pendingFocus.current = { point: location, zoom: 15 };

@@ -298,6 +298,138 @@ it.each(["location", "pointer"] as const)(
   },
 );
 
+it.each([false, true])(
+  "foca caminhada mantendo o trajeto e os ônibus (oculto: %s)",
+  (hidden) => {
+    engine.width = hidden ? 0 : 390;
+    engine.height = hidden ? 0 : 540;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: () => void) {
+          engine.resize = callback;
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const journey: JourneyMapSelection = {
+      id: "journey-a",
+      origin: { lat: -23.5, lon: -46.6 },
+      destination: { lat: -23.9, lon: -46.9 },
+      stops: [],
+      busLegs: [
+        {
+          routeId: "r",
+          tripId: "t",
+          lineCode: "857C-10",
+          headsign: "Conceição",
+        },
+      ],
+      paths: [
+        {
+          id: "walk-access",
+          kind: "walk",
+          label: "Caminhada inicial",
+          points: [
+            { lat: -23.5, lon: -46.6 },
+            { lat: -23.51, lon: -46.61 },
+          ],
+        },
+        {
+          id: "ride-0",
+          kind: "bus",
+          label: "857C-10",
+          points: [
+            { lat: -23.51, lon: -46.61 },
+            { lat: -23.9, lon: -46.9 },
+          ],
+        },
+      ],
+      steps: [
+        {
+          id: "walk-access",
+          kind: "walk",
+          title: "Caminhe",
+          from: { lat: -23.5, lon: -46.6, label: "Casa" },
+          to: { lat: -23.51, lon: -46.61, label: "Estação" },
+          status: "ready",
+        },
+      ],
+    };
+    const props = {
+      stops: [],
+      selectedStop: null,
+      onSelectStop: () => {},
+      location: null,
+      journey,
+      vehicles: [
+        {
+          id: "bus1",
+          lat: -23.7,
+          lon: -46.8,
+          observedAt: null,
+          lineCode: "857C-10",
+        },
+      ],
+    };
+    const view = render(<TransitMap {...props} />);
+    engine.fitBounds.mockClear();
+    view.rerender(
+      <TransitMap
+        {...props}
+        journeyFocus={{
+          journeyId: "journey-a",
+          stepId: "walk-access",
+          request: 1,
+        }}
+      />,
+    );
+    if (hidden) {
+      engine.width = 390;
+      engine.height = 540;
+      act(() => engine.resize());
+    }
+    expect(engine.fitBounds.mock.lastCall?.[0]).toContainEqual([
+      -23.51, -46.61,
+    ]);
+    expect(engine.fitBounds.mock.lastCall?.[0]).not.toContainEqual([
+      -23.9, -46.9,
+    ]);
+    expect(engine.fitBounds.mock.lastCall?.[1].maxZoom).toBe(18);
+    engine.fitBounds.mockClear();
+    view.rerender(
+      <TransitMap
+        {...props}
+        vehicles={[{ ...props.vehicles[0], lat: -23.71 }]}
+        journeyFocus={{
+          journeyId: "journey-a",
+          stepId: "walk-access",
+          request: 1,
+        }}
+      />,
+    );
+    expect(engine.fitBounds).not.toHaveBeenCalled();
+    expect(engine.marker.mock.lastCall?.[1].title).toContain("bus1");
+    view.rerender(
+      <TransitMap
+        {...props}
+        journeyFocus={{ journeyId: "journey-a", stepId: null, request: 2 }}
+      />,
+    );
+    expect(engine.fitBounds.mock.lastCall?.[0]).toContainEqual([-23.9, -46.9]);
+    engine.fitBounds.mockClear();
+    view.rerender(
+      <TransitMap
+        {...props}
+        journey={{ ...journey, id: "journey-b" }}
+        journeyFocus={null}
+      />,
+    );
+    expect(engine.fitBounds).toHaveBeenCalled();
+  },
+);
+
 it("desenha a curva do caminho e a inclui no enquadramento do mapa", () => {
   engine.width = 390;
   engine.height = 540;
