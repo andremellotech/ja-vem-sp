@@ -1,4 +1,128 @@
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap");
+
+.mode-comparison {
+  margin: 12px 0;
+}
+.mode-comparison-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.mode-comparison-actions button,
+.mode-comparison-cards button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 48px;
+  padding: 11px 9px;
+  border: 1px solid #bdd0c2;
+  border-radius: 10px;
+  background: #f0f6e8;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.mode-comparison-actions button:disabled {
+  opacity: 0.48;
+  cursor: default;
+}
+.mode-comparison-actions button:not(:disabled):hover,
+.mode-comparison-cards button:hover {
+  background: #dfedcf;
+}
+.mode-comparison-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 12px 0;
+}
+.mode-comparison-cards article {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+  min-width: 0;
+}
+.mode-comparison-cards h3 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  margin: 0 0 12px;
+}
+.mode-comparison-cards strong {
+  font-size: 16px;
+}
+.mode-comparison-cards p {
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.mode-comparison-cards button {
+  width: 100%;
+  background: #fff;
+  margin-top: 12px;
+}
+.mode-comparison-note {
+  grid-column: 1/-1;
+  color: #586b5e;
+}
+.journey-time-explanation {
+  background: #edf4e9;
+  border: 1px solid #dce6d6;
+  border-radius: 12px;
+  padding: 14px;
+  margin: 12px 0 18px;
+}
+.journey-time-explanation label {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.journey-time-explanation select {
+  width: 100%;
+  min-height: 44px;
+  max-width: 100%;
+  border: 1px solid #c6d4c2;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  padding: 8px;
+}
+.journey-time-explanation p,
+.journey-time-explanation small {
+  font-size: 11px;
+  line-height: 1.7;
+  color: #586b5e;
+}
+.journey-estimate {
+  display: grid;
+  gap: 7px;
+  background: #f2f6ec;
+  border-radius: 9px;
+  padding: 12px;
+  margin: 12px 0;
+}
+.journey-estimate strong {
+  font-size: 14px;
+}
+.journey-estimate small {
+  font-size: 11px;
+  line-height: 1.6;
+  color: #586b5e;
+}
+@media (max-width: 420px) {
+  .mode-comparison-actions button {
+    font-size: 12px;
+  }
+  .mode-comparison-cards article {
+    padding: 11px;
+  }
+}
+
 :root {
   font-family: "DM Sans", sans-serif;
   color: #18392f;

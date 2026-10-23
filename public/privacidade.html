@@ -11,7 +11,7 @@
       <a class="back" href="./">← Voltar ao Já Vem SP</a>
       <p class="eyebrow">JÁ VEM SP</p>
       <h1>Privacidade</h1>
-      <p>Atualizado em 21 de outubro de 2026.</p>
+      <p>Atualizado em 23 de outubro de 2026.</p>
       <h2>Endereços e localização</h2>
       <p>
         A digitação de endereço é enviada ao Photon/OpenStreetMap após pelo
@@ -27,21 +27,26 @@
         Marcar uma entrada no mapa ou informar latitude/longitude define os
         pontos do trajeto sem confirmar o número do imóvel na base de endereços.
         Essas escolhas também ficam somente na página. A navegação do mapa
-        solicita imagens ao OpenStreetMap; ao calcular o caminho a pé, os pontos
-        escolhidos são enviados ao serviço de pedestres descrito abaixo.
+        solicita imagens ao OpenStreetMap; ao calcular o caminho a pé ou de
+        carro, os pontos escolhidos são enviados ao serviço de rotas descrito
+        abaixo.
       </p>
-      <h2>Trajetos internos e caminhada</h2>
+      <h2>Trajetos internos, caminhada e carro</h2>
       <p>
         O site publicado mantém o quadro Google desativado e não usa chave
         Google. O planejamento interno de ônibus, metrô e trem usa o GTFS no
-        navegador. Ao calcular transporte ou caminhada, somente os pontos dos
-        trechos a pé selecionados são enviados ao serviço gratuito
-        FOSSGIS/OpenStreetMap. O operador pode registrar coordenadas, IP e
-        referenciador. Não há consulta de caminhada durante a digitação; as
+        navegador. Ao calcular transporte, os pontos dos trechos a pé
+        selecionados são enviados ao serviço gratuito FOSSGIS/OpenStreetMap. Ao
+        calcular carro, origem e destino confirmados são enviados ao perfil de
+        carro desse mesmo serviço. “Comparar modos” consulta caminhada e carro
+        entre os dois pontos. O operador pode registrar coordenadas, IP e
+        referenciador. Não há consulta de rotas durante a digitação; as
         respostas ficam apenas em cache temporário da página. Consulte
         <a href="https://routing.openstreetmap.de/about.html"
           >fontes, condições e registros do serviço</a
-        >. A API SPTrans continua separada.
+        >. Os tempos programados de transporte são calculados com o GTFS no
+        navegador, sem enviar os endereços a outro provedor. A API SPTrans
+        continua separada.
       </p>
       <h2>Quadro opcional do Google (desativado na versão publicada)</h2>
       <p>

@@ -1,4 +1,4 @@
-import { Footprints } from "lucide-react";
+import { Car, Footprints } from "lucide-react";
 import { walkingInstruction } from "./instructions";
 import type { WalkingRoute } from "./types";
 export type LabeledWalk = { label: string; route: WalkingRoute };
@@ -6,20 +6,23 @@ export default function WalkingPlanner({
   busy,
   walks,
   messages,
+  mode = "foot",
 }: {
   busy: boolean;
   walks: LabeledWalk[];
   messages: string[];
+  mode?: "foot" | "car";
 }) {
   if (!busy && !walks.length && !messages.length) return null;
   return (
     <section
       className="walking-planner"
-      aria-label="Caminhos no mapa"
+      aria-label={mode === "car" ? "Rota de carro" : "Caminhos no mapa"}
       aria-live="polite"
     >
       <h3>
-        <Footprints size={18} /> Caminhos no mapa
+        {mode === "car" ? <Car size={18} /> : <Footprints size={18} />}{" "}
+        {mode === "car" ? "Rota de carro" : "Caminhos no mapa"}
       </h3>
       {busy && <p role="status">Carregando caminhos e instruções…</p>}
       {messages.map((text, i) => (
@@ -35,13 +38,13 @@ export default function WalkingPlanner({
               {(route.distanceM / 1000).toLocaleString("pt-BR", {
                 maximumFractionDigits: 1,
               })}{" "}
-              km · cerca de {Math.max(1, Math.round(route.durationS / 60))} min
-              a pé
+              km · cerca de {Math.max(1, Math.round(route.durationS / 60))} min{" "}
+              {mode === "car" ? "de carro, sem trânsito ao vivo" : "a pé"}
             </summary>
             <ol>
               {route.steps.map((step, i) => (
                 <li key={i}>
-                  {walkingInstruction(step)}
+                  {walkingInstruction(step, mode)}
                   {step.distanceM > 0 && (
                     <small> · {Math.round(step.distanceM)} m</small>
                   )}
@@ -65,7 +68,7 @@ export default function WalkingPlanner({
         </div>
       ))}
       <p className="walking-source">
-        Caminhada: OpenStreetMap /{" "}
+        {mode === "car" ? "Carro" : "Caminhada"}: OpenStreetMap /{" "}
         <a
           href="https://routing.openstreetmap.de/about.html"
           target="_blank"

@@ -1193,11 +1193,39 @@ export default function App({
                   }
                 >
                   <div className="map-route-count" role="status">
-                    {line
-                      ? `${stops.length} paradas desta linha`
-                      : journeySelection!.stops.length
-                        ? `${journeySelection!.stops.length} paradas/estações das linhas usadas`
-                        : "Caminhada no mapa"}{" "}
+                    {line ? (
+                      `${stops.length} paradas desta linha`
+                    ) : journeySelection!.stops.length ? (
+                      `${journeySelection!.stops.length} paradas/estações das linhas usadas`
+                    ) : (
+                      <>
+                        {journeySelection!.mode === "car"
+                          ? "Carro"
+                          : "Caminhada"}{" "}
+                        no mapa
+                        {journeySelection!.roadSummary && (
+                          <>
+                            {" "}
+                            · cerca de{" "}
+                            {Math.max(
+                              1,
+                              Math.round(
+                                journeySelection!.roadSummary.durationS / 60,
+                              ),
+                            )}{" "}
+                            min ·{" "}
+                            {(
+                              journeySelection!.roadSummary.distanceM / 1000
+                            ).toLocaleString("pt-BR", {
+                              maximumFractionDigits: 1,
+                            })}{" "}
+                            km
+                          </>
+                        )}
+                        {journeySelection!.mode === "car" &&
+                          " · sem trânsito ao vivo"}
+                      </>
+                    )}{" "}
                     · outros pontos ocultos
                   </div>
                   {!!journeySelection?.busLegs?.length && (

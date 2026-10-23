@@ -96,6 +96,8 @@ export type PlannerResult = {
   reason?: "NO_NEARBY_STOPS" | "NO_CONNECTION";
 };
 export type JourneyMapSelection = {
+  mode?: "car" | "walk" | "transit";
+  roadSummary?: { distanceM: number; durationS: number };
   origin: Point;
   destination: Point;
   stops: Stop[];
@@ -108,7 +110,7 @@ export type JourneyBusLeg = Pick<
   "routeId" | "tripId" | "lineCode" | "headsign"
 >;
 export type MapPath = {
-  kind: TransportMode | "walk";
+  kind: TransportMode | "walk" | "car";
   label: string;
   points: Point[];
   color?: string;
