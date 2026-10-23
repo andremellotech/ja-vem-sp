@@ -19,6 +19,9 @@ export interface Vehicle {
   lon: number;
   observedAt: string | null;
   accessible?: boolean;
+  lineCode?: string;
+  lineDestination?: string;
+  lineId?: string;
 }
 export interface Arrival {
   lineId: string;

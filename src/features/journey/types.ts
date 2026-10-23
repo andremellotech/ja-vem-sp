@@ -101,7 +101,12 @@ export type JourneyMapSelection = {
   stops: Stop[];
   paths?: MapPath[];
   railStopIds?: string[];
+  busLegs?: JourneyBusLeg[];
 };
+export type JourneyBusLeg = Pick<
+  JourneyLeg,
+  "routeId" | "tripId" | "lineCode" | "headsign"
+>;
 export type MapPath = {
   kind: TransportMode | "walk";
   label: string;

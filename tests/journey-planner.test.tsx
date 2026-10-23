@@ -59,6 +59,14 @@ it("exige dois pontos, calcula opções e invalida ao editar", async () => {
     expect.objectContaining({
       origin: expect.objectContaining({ lat: networkStops[0].lat }),
       destination: expect.objectContaining({ lat: networkStops[2].lat }),
+      busLegs: [
+        expect.objectContaining({
+          routeId: "direct",
+          tripId: "direct",
+          lineCode: "direct",
+          headsign: "Centro",
+        }),
+      ],
     }),
   );
   expect(screen.getByText(/Distâncias em linha reta/)).toBeTruthy();

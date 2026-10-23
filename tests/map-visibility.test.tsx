@@ -1,6 +1,6 @@
 import React from "react";
 import { afterEach, expect, it, vi } from "vitest";
-import { act, cleanup, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import TransitMap from "../src/features/map/TransitMap";
 import type { JourneyMapSelection } from "../src/features/journey/types";
 
@@ -12,6 +12,7 @@ const engine = vi.hoisted(() => ({
   fitBounds: vi.fn(),
   setView: vi.fn(),
   polyline: vi.fn(),
+  marker: vi.fn(),
 }));
 vi.mock("leaflet", () => {
   const map = {
@@ -32,6 +33,10 @@ vi.mock("leaflet", () => {
       control: { zoom: () => ({ addTo() {} }) },
       layerGroup: () => ({ addTo: () => ({ clearLayers() {} }) }),
       circleMarker: () => ({ addTo: () => ({ bindTooltip() {}, on() {} }) }),
+      divIcon: (options: unknown) => options,
+      marker: engine.marker.mockImplementation(() => ({
+        addTo: () => ({ bindTooltip() {}, bindPopup() {} }),
+      })),
       polyline: engine.polyline.mockImplementation(() => ({
         addTo: () => ({ bindTooltip() {} }),
       })),
@@ -91,7 +96,207 @@ afterEach(() => {
   engine.fitBounds.mockClear();
   engine.setView.mockClear();
   engine.polyline.mockClear();
+  engine.marker.mockClear();
 });
+
+it("inclui os primeiros ônibus do trajeto no enquadramento e não move o mapa a cada atualização GPS", () => {
+  engine.width = 390;
+  engine.height = 540;
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  );
+  const journey: JourneyMapSelection = {
+    origin: { lat: -23.5, lon: -46.6 },
+    destination: { lat: -23.6, lon: -46.7 },
+    stops: [],
+    busLegs: [
+      { routeId: "r", tripId: "t", lineCode: "857C-10", headsign: "Conceição" },
+    ],
+    paths: [
+      {
+        kind: "bus",
+        label: "857C-10",
+        points: [
+          { lat: -23.5, lon: -46.6 },
+          { lat: -23.6, lon: -46.7 },
+        ],
+      },
+    ],
+  };
+  const props = {
+    stops: [],
+    selectedStop: null,
+    onSelectStop: () => {},
+    location: null,
+    journey,
+  };
+  const view = render(<TransitMap {...props} vehicles={[]} />);
+  engine.fitBounds.mockClear();
+  view.rerender(
+    <TransitMap
+      {...props}
+      vehicles={[
+        {
+          id: "12345",
+          lat: -23.8,
+          lon: -46.9,
+          observedAt: "2020-01-01T10:00:00Z",
+          lineCode: "857C-10",
+          lineDestination: "Conceição",
+        },
+      ]}
+    />,
+  );
+  expect(engine.fitBounds.mock.lastCall?.[0]).toContainEqual([-23.8, -46.9]);
+  const title = engine.marker.mock.lastCall?.[1].title;
+  expect(title).toContain("857C-10");
+  expect(title).toContain("Conceição");
+  expect(title).toContain("GPS");
+  expect(title).toContain("posição antiga");
+  engine.fitBounds.mockClear();
+  view.rerender(
+    <TransitMap
+      {...props}
+      vehicles={[{ id: "12345", lat: -23.81, lon: -46.91, observedAt: null }]}
+    />,
+  );
+  expect(engine.fitBounds).not.toHaveBeenCalled();
+});
+
+it.each([false, true])(
+  "inclui a frota que chega depois da baldeação (mapa oculto: %s)",
+  (hidden) => {
+    engine.width = hidden ? 0 : 390;
+    engine.height = hidden ? 0 : 540;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: () => void) {
+          engine.resize = callback;
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const journey: JourneyMapSelection = {
+      origin: { lat: -23.5, lon: -46.6 },
+      destination: { lat: -23.6, lon: -46.7 },
+      stops: [],
+      busLegs: [
+        {
+          routeId: "r1",
+          tripId: "t1",
+          lineCode: "857C-10",
+          headsign: "Conceição",
+        },
+        {
+          routeId: "r2",
+          tripId: "t2",
+          lineCode: "476A-10",
+          headsign: "Terminal",
+        },
+      ],
+    };
+    const first = {
+      id: "1",
+      lat: -23.7,
+      lon: -46.8,
+      observedAt: null,
+      lineId: "1901",
+    };
+    const second = {
+      id: "2",
+      lat: -23.9,
+      lon: -47,
+      observedAt: null,
+      lineId: "304",
+    };
+    const props = {
+      stops: [],
+      selectedStop: null,
+      onSelectStop: () => {},
+      location: null,
+      journey,
+    };
+    const view = render(<TransitMap {...props} vehicles={[]} />);
+    view.rerender(<TransitMap {...props} vehicles={[first]} />);
+    engine.fitBounds.mockClear();
+    view.rerender(<TransitMap {...props} vehicles={[first, second]} />);
+    if (hidden) {
+      expect(engine.fitBounds).not.toHaveBeenCalled();
+      engine.width = 390;
+      engine.height = 540;
+      act(() => engine.resize());
+    }
+    expect(engine.fitBounds.mock.lastCall?.[0]).toContainEqual([-23.9, -47]);
+    engine.fitBounds.mockClear();
+    view.rerender(
+      <TransitMap {...props} vehicles={[first, { ...second, lat: -23.91 }]} />,
+    );
+    expect(engine.fitBounds).not.toHaveBeenCalled();
+    const walking = { ...journey, busLegs: [] };
+    view.rerender(<TransitMap {...props} journey={walking} vehicles={[]} />);
+    view.rerender(<TransitMap {...props} vehicles={[]} />);
+    engine.fitBounds.mockClear();
+    view.rerender(<TransitMap {...props} vehicles={[first, second]} />);
+    expect(engine.fitBounds.mock.lastCall?.[0]).toContainEqual([-23.9, -47]);
+  },
+);
+
+it.each(["location", "pointer"] as const)(
+  "não desfaz foco de %s posterior ao trajeto quando a frota chega",
+  (focus) => {
+    engine.width = 390;
+    engine.height = 540;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const props = {
+      stops: [],
+      selectedStop: null,
+      onSelectStop: () => {},
+      location: null as [number, number] | null,
+      journey: {
+        origin: { lat: -23.5, lon: -46.6 },
+        destination: { lat: -23.6, lon: -46.7 },
+        stops: [],
+        busLegs: [
+          {
+            routeId: "r",
+            tripId: "t",
+            lineCode: "857C-10",
+            headsign: "Conceição",
+          },
+        ],
+      },
+    };
+    const view = render(<TransitMap {...props} vehicles={[]} />);
+    const location: [number, number] | null =
+      focus === "location" ? [-23.4, -46.4] : null;
+    view.rerender(<TransitMap {...props} location={location} vehicles={[]} />);
+    if (focus === "pointer")
+      fireEvent.pointerDown(
+        view.getByLabelText("Mapa de linhas e paradas de São Paulo"),
+      );
+    engine.fitBounds.mockClear();
+    view.rerender(
+      <TransitMap
+        {...props}
+        location={location}
+        vehicles={[{ id: "1", lat: -23.9, lon: -47, observedAt: null }]}
+      />,
+    );
+    expect(engine.fitBounds).not.toHaveBeenCalled();
+  },
+);
 
 it("desenha a curva do caminho e a inclui no enquadramento do mapa", () => {
   engine.width = 390;
