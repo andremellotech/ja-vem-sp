@@ -1,3 +1,5 @@
+import { useState } from "react";
+import type { JourneyEstimate } from "./timing";
 import {
   ArrowRight,
   BusFront,
@@ -15,6 +17,9 @@ const distance = (m: number) =>
       ? `${Math.round(m / 10) * 10} m`
       : `${(m / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km`;
 type Props = {
+  estimates?: Record<string, JourneyEstimate>;
+  calculatedAt?: Date | null;
+  timingMessage?: string;
   options: JourneyOption[];
   selectedId: string | null;
   origin?: Point | null;
@@ -26,6 +31,9 @@ type Props = {
   onWalk?: (from: Point, to: Point, label: string) => void;
 };
 export default function JourneyOptions({
+  estimates,
+  calculatedAt,
+  timingMessage,
   options,
   selectedId,
   origin,
@@ -36,6 +44,16 @@ export default function JourneyOptions({
   onShowArrivals,
   onWalk,
 }: Props) {
+  const [order, setOrder] = useState("search");
+  const displayed =
+    order === "time" && estimates
+      ? [...options].sort(
+          (a, b) =>
+            (estimates[a.id]?.totalS ?? Infinity) -
+            (estimates[b.id]?.totalS ?? Infinity),
+        )
+      : options;
+  const minutes = (seconds: number) => Math.max(0, Math.round(seconds / 60));
   return (
     <section className="journey-options" aria-label="Opções de transporte">
       <div className="journey-options-heading">
@@ -46,7 +64,41 @@ export default function JourneyOptions({
         Itinerários cadastrados no GTFS. A operação e as conexões neste momento
         não estão confirmadas.
       </p>
-      {options.map((option, i) => (
+      {timingMessage && (
+        <p className="journey-search-note" role="status">
+          {timingMessage}
+        </p>
+      )}
+      {estimates && (
+        <div className="journey-time-explanation">
+          <label>
+            Ordenar opções encontradas
+            <select value={order} onChange={(e) => setOrder(e.target.value)}>
+              <option value="search">Ordem da busca</option>
+              <option value="time">Menor tempo programado estimado</option>
+            </select>
+          </label>
+          <p>
+            Estimativa GTFS: tempo em transporte + espera média de meio
+            intervalo (ou partida programada quando informada) + caminhada
+            aproximada em linha reta a 4,5 km/h. Não inclui atrasos, trânsito ao
+            vivo nem acessos dentro das estações. Compara estas opções; não
+            garante o trajeto mais rápido da rede.
+          </p>
+          {calculatedAt && (
+            <small>
+              Consulta às{" "}
+              {calculatedAt.toLocaleTimeString("pt-BR", {
+                timeZone: "America/Sao_Paulo",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+              . Consulte as chegadas disponíveis antes de embarcar.
+            </small>
+          )}
+        </div>
+      )}
+      {displayed.map((option, i) => (
         <article
           key={option.id}
           className={
@@ -63,6 +115,30 @@ export default function JourneyOptions({
             </strong>
             <span>Opção {i + 1}</span>
           </div>
+          {estimates && (
+            <div className="journey-estimate">
+              {estimates[option.id]?.totalS != null ? (
+                <>
+                  <strong>
+                    Cerca de{" "}
+                    {Math.max(1, minutes(estimates[option.id].totalS!))} min ·
+                    estimativa programada
+                  </strong>
+                  <small>
+                    {minutes(estimates[option.id].ridingS)} min em transporte +{" "}
+                    {minutes(estimates[option.id].walkingS)} min de caminhada
+                    aproximada + {minutes(estimates[option.id].waitingS)} min de
+                    espera estimada
+                  </small>
+                </>
+              ) : (
+                <>
+                  <strong>Tempo total indisponível</strong>
+                  <small>{estimates[option.id]?.reason}</small>
+                </>
+              )}
+            </div>
+          )}
           <div className="journey-line-badges">
             {option.legs.map((leg, n) => (
               <span key={leg.tripId + ":" + n}>

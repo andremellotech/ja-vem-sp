@@ -168,6 +168,7 @@ export default function TransitMap({
         JSON.stringify([
           journey.origin,
           journey.destination,
+          journey.mode,
           journey.busLegs,
           journey.stops.map((s) => s.id),
         ])
@@ -218,9 +219,11 @@ export default function TransitMap({
           ? "#426a85"
           : path.color && /^[a-f0-9]{6}$/i.test(path.color)
             ? `#${path.color}`
-            : path.kind === "bus"
-              ? "#19734f"
-              : "#714da1";
+            : path.kind === "car"
+              ? "#2864bf"
+              : path.kind === "bus"
+                ? "#19734f"
+                : "#714da1";
       const line = L.polyline(
         path.points.map((p) => [p.lat, p.lon] as L.LatLngTuple),
         {
@@ -341,7 +344,11 @@ export default function TransitMap({
       )}
       {!!journey?.paths?.length && (
         <div className="map-path-legend">
-          <span>━━ Transporte · ┄┄ Caminhada</span>
+          <span>
+            {journey.paths.some((p) => p.kind === "car")
+              ? "━━ Carro · tempo sem trânsito ao vivo"
+              : "━━ Transporte · ┄┄ Caminhada"}
+          </span>
           <span>
             © OpenStreetMap ·{" "}
             <a

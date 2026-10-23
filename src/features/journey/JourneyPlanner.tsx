@@ -19,6 +19,10 @@ import { distanceM } from "../stops/network";
 import { loadLegPath } from "./paths";
 import { routeWalking } from "../walking/client";
 import WalkingPlanner, { type LabeledWalk } from "../walking/WalkingPlanner";
+import ModeComparison from "./ModeComparison";
+import { useRoadComparison, type RoadMode } from "./useRoadComparison";
+import type { WalkingRoute } from "../walking/types";
+import { estimateJourney, loadJourneyTimes, type JourneyTimes } from "./timing";
 import type {
   JourneyMapSelection,
   JourneyOption,
@@ -53,6 +57,11 @@ export default function JourneyPlanner({
     [destinationText, setDestinationText] = useState("");
   const [origin, setOrigin] = useState<Place | null>(null),
     [destination, setDestination] = useState<Place | null>(null);
+  const road = useRoadComparison(origin, destination, active);
+  const [roadMode, setRoadMode] = useState<RoadMode>("foot");
+  const [timings, setTimings] = useState<JourneyTimes | null>(null);
+  const [timingMessage, setTimingMessage] = useState("");
+  const [calculatedAt, setCalculatedAt] = useState<Date | null>(null);
   const [busy, setBusy] = useState(false),
     [locating, setLocating] = useState(false),
     [locationError, setLocationError] = useState(""),
@@ -80,6 +89,7 @@ export default function JourneyPlanner({
     setPathsBusy(false);
     setWalks([]);
     setPathMessages([]);
+    setRoadMode("foot");
     selectedMap.current = null;
   }
   useEffect(() => {
@@ -98,6 +108,9 @@ export default function JourneyPlanner({
     generation = useRef(0),
     gpsGeneration = useRef(0);
   function resetPlan() {
+    road.cancel();
+    setTimings(null);
+    setTimingMessage("");
     setPreferencesChanged(false);
     cancelPaths();
     generation.current++;
@@ -109,7 +122,34 @@ export default function JourneyPlanner({
     onMapSelection(null);
     onGoogleSelection?.(null);
   }
+  // Timing belongs to the retained transit result, independent of the map mode.
+  useEffect(() => {
+    setTimings(null);
+    if (!result || !active) {
+      setTimingMessage("");
+      return;
+    }
+    const c = new AbortController();
+    let current = true;
+    setTimingMessage("Carregando tempos programados…");
+    void loadJourneyTimes(c.signal)
+      .then((data) => {
+        if (current && !c.signal.aborted) {
+          setTimings(data);
+          setTimingMessage("");
+        }
+      })
+      .catch(() => {
+        if (current && !c.signal.aborted)
+          setTimingMessage("Tempos programados indisponíveis nesta consulta.");
+      });
+    return () => {
+      current = false;
+      c.abort();
+    };
+  }, [result, active]);
   function invalidatePending() {
+    road.cancel();
     onGoogleSelection?.(null);
     generation.current++;
     controller.current?.abort();
@@ -140,6 +180,7 @@ export default function JourneyPlanner({
       ).values(),
     ];
     const selection: JourneyMapSelection = {
+      mode: "transit",
       origin: { lat: origin.lat, lon: origin.lon },
       destination: { lat: destination.lat, lon: destination.lon },
       stops,
@@ -195,7 +236,18 @@ export default function JourneyPlanner({
       current === pathsGeneration.current && !c.signal.aborted;
     const publish = () => {
       if (!valid()) return;
-      const next = { ...selection, paths: [...paths] };
+      const next = {
+        ...selection,
+        paths: [...paths],
+        ...(!option && walking.length === 1
+          ? {
+              roadSummary: {
+                distanceM: walking[0].route.distanceM,
+                durationS: walking[0].route.durationS,
+              },
+            }
+          : {}),
+      };
       if (option) selectedMap.current = { id: option.id, selection: next };
       onMapSelection(next);
       setWalks([...walking]);
@@ -251,6 +303,7 @@ export default function JourneyPlanner({
   }
   function walkBetween(from: Point, to: Point, label: string) {
     if (!active) return;
+    road.cancel();
     generation.current++;
     controller.current?.abort();
     setBusy(false);
@@ -259,6 +312,7 @@ export default function JourneyPlanner({
     setSelectedId(null);
     onGoogleSelection?.(null);
     const selection: JourneyMapSelection = {
+      mode: "walk",
       origin: from,
       destination: to,
       stops: [],
@@ -267,6 +321,46 @@ export default function JourneyPlanner({
     onMapSelection(selection);
     onShowMap?.();
     void drawPaths(selection, null, [{ from, to, label }]);
+  }
+  function showRoad(mode: RoadMode, route: WalkingRoute) {
+    if (!active || !origin || !destination) return;
+    road.cancel();
+    generation.current++;
+    controller.current?.abort();
+    setBusy(false);
+    setError("");
+    cancelPaths();
+    setSelectedId(null);
+    setRoadMode(mode);
+    setWalks([
+      {
+        label: mode === "car" ? "Trajeto de carro" : "Caminhada completa",
+        route,
+      },
+    ]);
+    onGoogleSelection?.(null);
+    onMapSelection({
+      mode: mode === "car" ? "car" : "walk",
+      roadSummary: { distanceM: route.distanceM, durationS: route.durationS },
+      origin,
+      destination,
+      stops: [],
+      paths: [
+        {
+          kind: mode === "car" ? "car" : "walk",
+          label: mode === "car" ? "Carro" : "A pé",
+          points: route.points,
+        },
+      ],
+    });
+    onShowMap?.();
+  }
+  function calculateCar() {
+    resetPlan();
+    const current = pathsGeneration.current;
+    void road.run(["car"], (mode, route) => {
+      if (current === pathsGeneration.current) showRoad(mode, route);
+    });
   }
   useEffect(() => {
     if (!active) {
@@ -331,6 +425,7 @@ export default function JourneyPlanner({
       c = new AbortController();
     controller.current = c;
     setBusy(true);
+    setCalculatedAt(new Date());
     try {
       if (!client.current) {
         const base = new URL(import.meta.env.BASE_URL, location.href);
@@ -524,10 +619,20 @@ export default function JourneyPlanner({
         >
           <Footprints size={18} /> Ver caminhada no mapa
         </button>
+        <ModeComparison
+          state={road}
+          enabled={!!origin && !!destination && !locating && active}
+          onCar={calculateCar}
+          onCompare={() => {
+            void calculate();
+            void road.run(["foot", "car"]);
+          }}
+          onSelect={showRoad}
+        />
         <p className="address-privacy">
-          Ao calcular, os pontos dos trechos a pé são enviados ao serviço
-          gratuito FOSSGIS/OpenStreetMap, que pode registrar coordenadas e IP.
-          Não consultamos caminhadas durante a digitação.{" "}
+          Ao calcular, os pontos dos trechos a pé ou de carro são enviados ao
+          serviço gratuito FOSSGIS/OpenStreetMap, que pode registrar coordenadas
+          e IP. Não consultamos rotas durante a digitação.{" "}
           <a
             href="https://routing.openstreetmap.de/about.html"
             target="_blank"
@@ -546,9 +651,9 @@ export default function JourneyPlanner({
           {criterion === "walking"
             ? "Menor caminhada, depois menos trocas e menos paradas."
             : "Menos trocas, depois menor caminhada e menos paradas."}{" "}
-          Não estimamos o menor tempo de viagem. Conexões a pé entre estações e
-          paradas não garantem integração tarifária. Consulte a operação atual
-          do metrô e dos trens.
+          A comparação de tempo é programada e aproximada, sem trânsito ao vivo.
+          Conexões a pé entre estações e paradas não garantem integração
+          tarifária. Consulte a operação atual do metrô e dos trens.
         </p>
         {active &&
           origin &&
@@ -569,7 +674,12 @@ export default function JourneyPlanner({
             />
           )}
       </div>
-      <WalkingPlanner busy={pathsBusy} walks={walks} messages={pathMessages} />
+      <WalkingPlanner
+        busy={pathsBusy}
+        walks={walks}
+        messages={pathMessages}
+        mode={roadMode}
+      />
       <div className="journey-result-state" aria-live="polite">
         {busy && (
           <p className="journey-loading">
@@ -609,6 +719,18 @@ export default function JourneyPlanner({
       {!!result?.options.length && (
         <JourneyOptions
           options={result.options}
+          estimates={
+            timings && calculatedAt
+              ? Object.fromEntries(
+                  result.options.map((o) => [
+                    o.id,
+                    estimateJourney(o, timings, calculatedAt),
+                  ]),
+                )
+              : undefined
+          }
+          timingMessage={timingMessage}
+          calculatedAt={calculatedAt}
           origin={origin}
           destination={destination}
           originLabel={origin?.requestedAddress ?? origin?.label}
