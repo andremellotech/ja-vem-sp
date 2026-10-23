@@ -15,11 +15,12 @@ import GoogleEmbedPlanner from "../google-embed/GoogleEmbedPlanner";
 import type { GoogleEmbedSelection } from "../google-embed/types";
 import { createPlannerClient } from "./client";
 import { serviceDateInSaoPaulo } from "./calendar";
-import { distanceM } from "../stops/network";
 import { loadLegPath } from "./paths";
 import { routeWalking } from "../walking/client";
 import WalkingPlanner, { type LabeledWalk } from "../walking/WalkingPlanner";
 import ModeComparison from "./ModeComparison";
+import JourneySteps from "./JourneySteps";
+import { buildJourneySteps } from "./steps";
 import { useRoadComparison, type RoadMode } from "./useRoadComparison";
 import type { WalkingRoute } from "../walking/types";
 import { estimateJourney, loadJourneyTimes, type JourneyTimes } from "./timing";
@@ -30,12 +31,15 @@ import type {
   PlannerResult,
   Point,
   MapPath,
+  JourneyStep,
 } from "./types";
 type Props = {
   onMapSelection: (selection: JourneyMapSelection | null) => void;
   onShowArrivals: (stop: Stop, selection: JourneyMapSelection) => void;
   onLocate: () => Promise<Point | null>;
   onShowMap?: () => void;
+  onFocusStep?: (id: string | null) => void;
+  retainedJourneyId?: string | null;
   active?: boolean;
   deviceLocation?: Point | null;
   googleEmbedKey?: string;
@@ -47,6 +51,8 @@ export default function JourneyPlanner({
   onShowArrivals,
   onLocate,
   onShowMap,
+  onFocusStep,
+  retainedJourneyId = null,
   active = true,
   deviceLocation,
   googleEmbedKey = "",
@@ -59,6 +65,8 @@ export default function JourneyPlanner({
     [destination, setDestination] = useState<Place | null>(null);
   const road = useRoadComparison(origin, destination, active);
   const [roadMode, setRoadMode] = useState<RoadMode>("foot");
+  const [journeyDetails, setJourneyDetails] =
+    useState<JourneyMapSelection | null>(null);
   const [timings, setTimings] = useState<JourneyTimes | null>(null);
   const [timingMessage, setTimingMessage] = useState("");
   const [calculatedAt, setCalculatedAt] = useState<Date | null>(null);
@@ -90,6 +98,7 @@ export default function JourneyPlanner({
     setWalks([]);
     setPathMessages([]);
     setRoadMode("foot");
+    setJourneyDetails(null);
     selectedMap.current = null;
   }
   useEffect(() => {
@@ -153,10 +162,7 @@ export default function JourneyPlanner({
     onGoogleSelection?.(null);
     generation.current++;
     controller.current?.abort();
-    pathsGeneration.current++;
-    pathsController.current?.abort();
     setBusy(false);
-    setPathsBusy(false);
     setError("");
     setPreferencesChanged(true);
   }
@@ -180,6 +186,23 @@ export default function JourneyPlanner({
       ).values(),
     ];
     const selection: JourneyMapSelection = {
+      id:
+        option.id +
+        JSON.stringify([
+          origin.lat,
+          origin.lon,
+          destination.lat,
+          destination.lon,
+        ]),
+      originLabel: origin.requestedAddress ?? origin.label,
+      destinationLabel: destination.requestedAddress ?? destination.label,
+      steps: buildJourneySteps(
+        option,
+        origin,
+        destination,
+        origin.requestedAddress ?? origin.label,
+        destination.requestedAddress ?? destination.label,
+      ),
       mode: "transit",
       origin: { lat: origin.lat, lon: origin.lon },
       destination: { lat: destination.lat, lon: destination.lon },
@@ -202,28 +225,99 @@ export default function JourneyPlanner({
       paths: [],
     };
     selectedMap.current = { id: option.id, selection };
+    setJourneyDetails(selection);
     onMapSelection(selection);
-    const segments = [
-      { from: origin, to: option.legs[0].from, label: "Até o embarque" },
-      ...option.legs.slice(1).map((l, i) => ({
-        from: option.legs[i].to,
-        to: l.from,
-        label: `Caminhada na troca ${i + 1}`,
-      })),
-      {
-        from: option.legs[option.legs.length - 1].to,
-        to: destination,
-        label: "Até o destino",
-      },
-    ].filter(
-      (s) => distanceM(s.from.lat, s.from.lon, s.to.lat, s.to.lon) >= 10,
-    );
-    void drawPaths(selection, option, segments);
+    void drawJourneySteps(selection, option);
     return selection;
+  }
+  async function drawJourneySteps(
+    selection: JourneyMapSelection,
+    option: JourneyOption,
+  ) {
+    const current = pathsGeneration.current,
+      c = new AbortController();
+    pathsController.current = c;
+    const steps = [...(selection.steps ?? [])];
+    const valid = () =>
+      current === pathsGeneration.current && !c.signal.aborted;
+    const publish = () => {
+      if (!valid()) return;
+      const next = {
+        ...selection,
+        steps: [...steps],
+        paths: steps.flatMap((s) => (s.path ? [s.path] : [])),
+      };
+      selectedMap.current = { id: option.id, selection: next };
+      setJourneyDetails(next);
+      onMapSelection(next);
+    };
+    const update = (id: string, fields: Partial<JourneyStep>) => {
+      if (!valid()) return;
+      const i = steps.findIndex((s) => s.id === id);
+      steps[i] = { ...steps[i], ...fields };
+      publish();
+    };
+    setPathsBusy(true);
+    const rides = Promise.all(
+      steps
+        .filter((s) => s.kind !== "walk")
+        .map(async (s) => {
+          try {
+            const path = await loadLegPath(option.legs[s.legIndex!], c.signal);
+            update(
+              s.id,
+              path
+                ? { status: "ready", path: { ...path, id: s.id } }
+                : {
+                    status: "unavailable",
+                    message:
+                      "O desenho deste trecho está incompleto na base. Embarque, desembarque e paradas cadastradas continuam disponíveis.",
+                  },
+            );
+          } catch {
+            update(s.id, {
+              status: "unavailable",
+              message: "Não foi possível carregar o desenho deste trecho.",
+            });
+          }
+        }),
+    );
+    for (const s of steps.filter(
+      (s) => s.kind === "walk" && s.status !== "nearby",
+    )) {
+      if (!valid()) break;
+      try {
+        const route = await routeWalking(s.from, s.to, c.signal);
+        update(s.id, {
+          status: "ready",
+          walk: route,
+          path: {
+            id: s.id,
+            kind: "walk",
+            label: s.title,
+            points: route.points,
+          },
+        });
+      } catch (e) {
+        update(s.id, {
+          status: "unavailable",
+          message:
+            e instanceof Error
+              ? e.message
+              : "Caminhada indisponível para esta etapa.",
+        });
+      }
+    }
+    await rides;
+    if (valid()) setPathsBusy(false);
+  }
+  function focusJourneyStep(option: JourneyOption, id: string | null) {
+    choose(option);
+    onFocusStep?.(id);
+    onShowMap?.();
   }
   async function drawPaths(
     selection: JourneyMapSelection,
-    option: JourneyOption | null,
     segments: { from: Point; to: Point; label: string }[],
   ) {
     const current = pathsGeneration.current,
@@ -239,7 +333,7 @@ export default function JourneyPlanner({
       const next = {
         ...selection,
         paths: [...paths],
-        ...(!option && walking.length === 1
+        ...(walking.length === 1
           ? {
               roadSummary: {
                 distanceM: walking[0].route.distanceM,
@@ -248,27 +342,12 @@ export default function JourneyPlanner({
             }
           : {}),
       };
-      if (option) selectedMap.current = { id: option.id, selection: next };
       onMapSelection(next);
       setWalks([...walking]);
       setPathMessages([...messages]);
     };
     setPathsBusy(true);
     try {
-      if (option) {
-        const lines = await Promise.all(
-          option.legs.map((l) => loadLegPath(l, c.signal)),
-        );
-        if (!valid()) return;
-        lines.forEach((path, i) => {
-          if (path) paths.push(path);
-          else
-            messages.push(
-              `O desenho do trecho ${option.legs[i].lineCode} está incompleto na base. As paradas cadastradas continuam no mapa.`,
-            );
-        });
-        publish();
-      }
       for (const segment of segments) {
         if (!valid()) return;
         try {
@@ -320,7 +399,7 @@ export default function JourneyPlanner({
     };
     onMapSelection(selection);
     onShowMap?.();
-    void drawPaths(selection, null, [{ from, to, label }]);
+    void drawPaths(selection, [{ from, to, label }]);
   }
   function showRoad(mode: RoadMode, route: WalkingRoute) {
     if (!active || !origin || !destination) return;
@@ -363,8 +442,14 @@ export default function JourneyPlanner({
     });
   }
   useEffect(() => {
-    if (!active) {
+    const retained =
+      !!retainedJourneyId &&
+      selectedMap.current?.selection.id === retainedJourneyId;
+    if (!retained && (!active || selectedMap.current)) {
       cancelPaths();
+      setSelectedId(null);
+    }
+    if (!active) {
       onGoogleSelection?.(null);
       generation.current++;
       gpsGeneration.current++;
@@ -373,9 +458,8 @@ export default function JourneyPlanner({
       client.current = null;
       setBusy(false);
       setLocating(false);
-      setSelectedId(null);
     }
-  }, [active]);
+  }, [active, retainedJourneyId]);
   useEffect(
     () => () => {
       pathsGeneration.current++;
@@ -674,12 +758,23 @@ export default function JourneyPlanner({
             />
           )}
       </div>
-      <WalkingPlanner
-        busy={pathsBusy}
-        walks={walks}
-        messages={pathMessages}
-        mode={roadMode}
-      />
+      {journeyDetails && (
+        <JourneySteps
+          selection={journeyDetails}
+          onFocus={(id) => {
+            onFocusStep?.(id);
+            onShowMap?.();
+          }}
+        />
+      )}
+      {!journeyDetails && (
+        <WalkingPlanner
+          busy={pathsBusy}
+          walks={walks}
+          messages={pathMessages}
+          mode={roadMode}
+        />
+      )}
       <div className="journey-result-state" aria-live="polite">
         {busy && (
           <p className="journey-loading">
@@ -745,6 +840,7 @@ export default function JourneyPlanner({
             if (selection) onShowArrivals(stop, selection);
           }}
           onWalk={walkBetween}
+          onFocusStep={focusJourneyStep}
         />
       )}
       <GoogleDirections origin={origin} destination={destination} />

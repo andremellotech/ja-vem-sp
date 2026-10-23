@@ -37,7 +37,12 @@ import type { GoogleEmbedSelection } from "./features/google-embed/types";
 import LineSearch from "./features/lines/LineSearch";
 import NearbyTransit from "./features/nearby/NearbyTransit";
 import LineSchedule from "./features/schedules/LineSchedule";
-import type { JourneyMapSelection, Point } from "./features/journey/types";
+import type {
+  JourneyMapSelection,
+  JourneyFocus,
+  Point,
+} from "./features/journey/types";
+import JourneySteps from "./features/journey/JourneySteps";
 import { loadStopsForLine } from "./features/journey/line-stops";
 import { loadNetwork, type NetStopIndex } from "./features/stops/network";
 import { searchTransit } from "./features/search/transit";
@@ -113,8 +118,28 @@ export default function App({
   });
   const [view, setView] = useState<"list" | "map">("list");
   const [mode, setMode] = useState<"journey" | "nearby" | "lines">("journey");
-  const [journeySelection, setJourneySelection] =
+  const [journeySelection, setJourneySelectionState] =
     useState<JourneyMapSelection | null>(null);
+  const [journeyFocus, setJourneyFocus] = useState<JourneyFocus | null>(null);
+  const journeyId = useRef<string | undefined>(undefined);
+  const focusRequest = useRef(0);
+  const setJourneySelection = useCallback(
+    (selection: JourneyMapSelection | null) => {
+      if (selection?.id !== journeyId.current) setJourneyFocus(null);
+      journeyId.current = selection?.id;
+      setJourneySelectionState(selection);
+    },
+    [],
+  );
+  function focusJourneyStep(stepId: string | null) {
+    if (!journeySelection?.id) return;
+    setJourneyFocus({
+      journeyId: journeySelection.id,
+      stepId,
+      request: ++focusRequest.current,
+    });
+    setView("map");
+  }
   const [googleSelection, setGoogleSelection] =
     useState<GoogleEmbedSelection | null>(null);
   const journeyFleet = useJourneyVehicles(
@@ -756,6 +781,8 @@ export default function App({
                 void search(code);
               }}
               onMapSelection={setJourneySelection}
+              onFocusStep={focusJourneyStep}
+              retainedJourneyId={journeySelection?.id}
               onShowArrivals={showJourneyArrivals}
               onLocate={locate}
               onShowMap={() => setView("map")}
@@ -1144,6 +1171,7 @@ export default function App({
                 }}
                 location={location}
                 journey={journeySelection}
+                journeyFocus={journeyFocus}
               />
               <div className="map-top">
                 <div className="map-title">
@@ -1187,13 +1215,16 @@ export default function App({
               {(line || journeySelection) && (
                 <div
                   className={
-                    journeySelection?.busLegs?.length
+                    journeySelection?.busLegs?.length ||
+                    journeySelection?.steps?.length
                       ? "map-journey-summary"
                       : undefined
                   }
                 >
                   <div className="map-route-count" role="status">
-                    {line ? (
+                    {journeySelection?.steps?.length ? (
+                      `${journeySelection.steps.length} etapas da saída ao destino final`
+                    ) : line && !journeySelection ? (
                       `${stops.length} paradas desta linha`
                     ) : journeySelection!.stops.length ? (
                       `${journeySelection!.stops.length} paradas/estações das linhas usadas`
@@ -1228,6 +1259,14 @@ export default function App({
                     )}{" "}
                     · outros pontos ocultos
                   </div>
+                  {!!journeySelection?.steps?.length && (
+                    <JourneySteps
+                      compact
+                      selection={journeySelection}
+                      focusedId={journeyFocus?.stepId}
+                      onFocus={focusJourneyStep}
+                    />
+                  )}
                   {!!journeySelection?.busLegs?.length && (
                     <JourneyVehiclesStatus fleet={journeyFleet} compact />
                   )}

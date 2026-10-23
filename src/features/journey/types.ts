@@ -1,4 +1,5 @@
 import type { Stop } from "../../contracts";
+import type { WalkingRoute } from "../walking/types";
 export type Point = { lat: number; lon: number };
 export type Place = Point & {
   id: string;
@@ -96,6 +97,10 @@ export type PlannerResult = {
   reason?: "NO_NEARBY_STOPS" | "NO_CONNECTION";
 };
 export type JourneyMapSelection = {
+  id?: string;
+  originLabel?: string;
+  destinationLabel?: string;
+  steps?: JourneyStep[];
   mode?: "car" | "walk" | "transit";
   roadSummary?: { distanceM: number; durationS: number };
   origin: Point;
@@ -110,10 +115,30 @@ export type JourneyBusLeg = Pick<
   "routeId" | "tripId" | "lineCode" | "headsign"
 >;
 export type MapPath = {
+  id?: string;
   kind: TransportMode | "walk" | "car";
   label: string;
   points: Point[];
   color?: string;
+};
+export type JourneyStep = {
+  id: string;
+  kind: TransportMode | "walk";
+  title: string;
+  from: Point & { label: string };
+  to: Point & { label: string };
+  lineCode?: string;
+  headsign?: string;
+  legIndex?: number;
+  status: "loading" | "ready" | "nearby" | "unavailable";
+  path?: MapPath;
+  walk?: WalkingRoute;
+  message?: string;
+};
+export type JourneyFocus = {
+  journeyId: string;
+  stepId: string | null;
+  request: number;
 };
 export type PlannerErrorCode =
   "INVALID_DATA" | "EXPIRED_DATA" | "DATA_UNAVAILABLE" | "TIMEOUT";

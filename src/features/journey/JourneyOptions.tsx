@@ -29,6 +29,7 @@ type Props = {
   onSelect: (option: JourneyOption) => void;
   onShowArrivals: (stop: Stop, option: JourneyOption) => void;
   onWalk?: (from: Point, to: Point, label: string) => void;
+  onFocusStep?: (option: JourneyOption, id: string) => void;
 };
 export default function JourneyOptions({
   estimates,
@@ -43,6 +44,7 @@ export default function JourneyOptions({
   onSelect,
   onShowArrivals,
   onWalk,
+  onFocusStep,
 }: Props) {
   const [order, setOrder] = useState("search");
   const displayed =
@@ -266,7 +268,9 @@ export default function JourneyOptions({
               <button
                 type="button"
                 onClick={() =>
-                  onWalk?.(origin, option.legs[0].from, "Até o embarque")
+                  onFocusStep
+                    ? onFocusStep(option, "walk-access")
+                    : onWalk?.(origin, option.legs[0].from, "Até o embarque")
                 }
               >
                 <Footprints size={15} /> Ir a pé até o embarque
@@ -274,11 +278,13 @@ export default function JourneyOptions({
               <button
                 type="button"
                 onClick={() =>
-                  onWalk?.(
-                    option.legs[option.legs.length - 1].to,
-                    destination,
-                    "Até o destino",
-                  )
+                  onFocusStep
+                    ? onFocusStep(option, "walk-egress")
+                    : onWalk?.(
+                        option.legs[option.legs.length - 1].to,
+                        destination,
+                        "Até o destino",
+                      )
                 }
               >
                 <Footprints size={15} /> Ir a pé do desembarque ao destino
@@ -290,11 +296,13 @@ export default function JourneyOptions({
                       key={n}
                       type="button"
                       onClick={() =>
-                        onWalk?.(
-                          option.legs[n].to,
-                          leg.from,
-                          `Caminhada na troca ${n + 1}`,
-                        )
+                        onFocusStep
+                          ? onFocusStep(option, "walk-transfer-" + (n + 1))
+                          : onWalk?.(
+                              option.legs[n].to,
+                              leg.from,
+                              `Caminhada na troca ${n + 1}`,
+                            )
                       }
                     >
                       <Footprints size={15} /> Ver caminhada da troca {n + 1}

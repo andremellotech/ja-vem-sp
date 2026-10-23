@@ -18,14 +18,24 @@ const leg = {
   headsign: "Term. Pirituba",
 };
 const selection = {
+  id: "fleet-journey",
   origin: networkStops[0],
   destination: networkStops[2],
   stops: networkStops,
   busLegs: [leg],
 };
 vi.mock("../src/features/journey/JourneyPlanner", () => ({
-  default: ({ onMapSelection }: { onMapSelection: (s: unknown) => void }) => (
+  default: ({
+    onMapSelection,
+    onFocusStep,
+  }: {
+    onMapSelection: (s: unknown) => void;
+    onFocusStep: (id: string) => void;
+  }) => (
     <>
+      <button onClick={() => onFocusStep("walk-access")}>
+        Focar caminhada do trajeto
+      </button>
       <button onClick={() => onMapSelection(selection)}>
         Selecionar trajeto de ônibus
       </button>
@@ -64,8 +74,19 @@ vi.mock("../src/features/journey/JourneyPlanner", () => ({
   ),
 }));
 vi.mock("../src/features/map/TransitMap", () => ({
-  default: ({ vehicles }: { vehicles: Vehicle[] }) => (
-    <output aria-label="Frota desenhada">{JSON.stringify(vehicles)}</output>
+  default: ({
+    vehicles,
+    journeyFocus,
+  }: {
+    vehicles: Vehicle[];
+    journeyFocus?: unknown;
+  }) => (
+    <>
+      <output aria-label="Frota desenhada">{JSON.stringify(vehicles)}</output>
+      <output aria-label="Foco do trajeto">
+        {JSON.stringify(journeyFocus)}
+      </output>
+    </>
   ),
 }));
 afterEach(() => {
@@ -225,6 +246,29 @@ it("carrega no mapa somente os ônibus do sentido selecionado no trajeto", async
   expect(screen.getByLabelText("Frota desenhada").textContent).toContain(
     "8000-10",
   );
+});
+it("focar caminhada mantém os ônibus sem reiniciar a consulta da frota", async () => {
+  const { urls } = install();
+  render(<App apiBase="https://fleet-walk-focus.test" />);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Selecionar trajeto de ônibus" }),
+  );
+  await waitFor(() =>
+    expect(screen.getByLabelText("Frota desenhada").textContent).toContain(
+      "bus-out",
+    ),
+  );
+  const count = urls.length;
+  fireEvent.click(
+    screen.getByRole("button", { name: "Focar caminhada do trajeto" }),
+  );
+  expect(screen.getByLabelText("Frota desenhada").textContent).toContain(
+    "bus-out",
+  );
+  expect(screen.getByLabelText("Foco do trajeto").textContent).toContain(
+    "walk-access",
+  );
+  expect(urls).toHaveLength(count);
 });
 it("mostra a primeira linha enquanto a consulta de uma baldeação ainda está pendente", async () => {
   const pending = install({ delayedTransfer: true });
