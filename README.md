@@ -32,6 +32,10 @@ A rua sem número não confirma o imóvel: esses resultados exigem escolha e con
 
 ## Busca e programação
 
+Ao selecionar uma opção de trajeto, o mapa consulta também as posições SPTrans dos trechos de ônibus, inclusive nas baldeações. Cada sentido é associado ao itinerário GTFS escolhido e a um único identificador do catálogo Olho Vivo; associação ambígua recebe aviso e não consulta um sentido arbitrário. O painel informa a quantidade por linha e o horário GPS; tocar no marcador identifica veículo, linha e sentido. São posições da linha inteira, sem garantir qual ônibus fará o embarque. A primeira carga enquadra os veículos junto ao trajeto; atualizações seguintes preservam a navegação no mapa.
+
+As posições atualizam a cada 30 segundos, com atualização manual e pausa em aba oculta. Cada consulta tem limite de 15 segundos; resultados de opções anteriores são descartados. Linhas respondem independentemente: erro, ausência de veículos e sentido não confirmado têm mensagens próprias. Não há posições simuladas nem posição ferroviária ao vivo. Horários GPS acima de dois minutos são sinalizados como antigos. Esta função reutiliza a API gratuita já publicada, sem novas credenciais ou serviços pagos.
+
 Os três modos são **Trajeto**, **Perto de mim** e **Linhas e horários**. Uma localização já fornecida preenche apenas a origem vazia. O visitante pode priorizar menos trocas (padrão) ou menos caminhada; todos os candidatos são ordenados antes do limite de seis opções.
 
 Proximidade usa os ônibus com serviço ativo no calendário de hoje: apresenta inicialmente oito pontos e oito combinações linha/letreiro em 800 m, com botões para mostrar os demais resultados e ampliação explícita para 1.200 m. O mapa acompanha a expansão da lista de paradas. Todos os pontos candidatos participam da busca das linhas antes da paginação. Distâncias são em linha reta e serviço cadastrado no dia não garante operação naquele horário.

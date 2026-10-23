@@ -143,6 +143,14 @@ export default function JourneyPlanner({
       origin: { lat: origin.lat, lon: origin.lon },
       destination: { lat: destination.lat, lon: destination.lon },
       stops,
+      busLegs: option.legs
+        .filter((l) => (l.mode ?? "bus") === "bus")
+        .map(({ routeId, tripId, lineCode, headsign }) => ({
+          routeId,
+          tripId,
+          lineCode,
+          headsign,
+        })),
       railStopIds: [
         ...new Set(
           option.legs

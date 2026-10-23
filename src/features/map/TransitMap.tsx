@@ -33,6 +33,11 @@ export default function TransitMap({
   const [view, setView] = useState(0),
     [hint, setHint] = useState<"zoom" | "dense" | null>(null);
   const fitted = useRef("");
+  const fleetFitted = useRef({
+    key: "",
+    lines: new Set<string>(),
+    userFocused: false,
+  });
   const pendingBounds = useRef<L.LatLngBounds | null>(null);
   const pendingFocus = useRef<{ point: L.LatLngTuple; zoom: number } | null>(
     null,
@@ -66,6 +71,16 @@ export default function TransitMap({
     layers.current = L.layerGroup().addTo(m);
     map.current = m;
     m.on("moveend", () => setView((v) => v + 1));
+    // A later GPS response must not undo a deliberate map movement.
+    const preserveView = () => {
+      fleetFitted.current.userFocused = true;
+      pendingBounds.current = null;
+      pendingFocus.current = null;
+    };
+    const element = host.current;
+    element.addEventListener("pointerdown", preserveView);
+    element.addEventListener("wheel", preserveView, { passive: true });
+    element.addEventListener("keydown", preserveView);
     const resize = new ResizeObserver(() => {
       m.invalidateSize();
       fitWhenVisible(m);
@@ -73,6 +88,9 @@ export default function TransitMap({
     resize.observe(host.current);
     return () => {
       resize.disconnect();
+      element.removeEventListener("pointerdown", preserveView);
+      element.removeEventListener("wheel", preserveView);
+      element.removeEventListener("keydown", preserveView);
       m.remove();
       map.current = null;
     };
@@ -96,7 +114,27 @@ export default function TransitMap({
       marker.on("click", () => onSelectStop(stop.id));
     }
     for (const v of vehicles) {
+      const gps =
+        v.observedAt && Number.isFinite(Date.parse(v.observedAt))
+          ? new Date(v.observedAt).toLocaleTimeString("pt-BR", {
+              timeZone: "America/Sao_Paulo",
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "não informado";
+      const stale =
+        !!v.observedAt && Date.now() - Date.parse(v.observedAt) > 120000;
+      const description = [
+        "Ônibus " + v.id,
+        v.lineCode,
+        v.lineDestination,
+        "GPS " + gps,
+        stale ? "posição antiga" : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
       const marker = L.marker([v.lat, v.lon], {
+        title: description,
         icon: L.divIcon({
           className: "bus-pin",
           html: '<span aria-hidden="true">▰</span>',
@@ -104,8 +142,9 @@ export default function TransitMap({
         }),
       }).addTo(group);
       const label = document.createElement("span");
-      label.textContent = "Ônibus " + v.id;
+      label.textContent = description;
       marker.bindTooltip(label);
+      marker.bindPopup(label.cloneNode(true) as HTMLElement);
     }
     if (location)
       L.circleMarker(location, {
@@ -121,12 +160,41 @@ export default function TransitMap({
           journey.destination,
           ...(journey.paths?.length ? [] : journey.stops),
           ...(journey.paths ?? []).flatMap((p) => p.points),
+          ...vehicles,
         ]
       : stops;
     const key = journey
-      ? "journey:" + journey.stops.map((s) => s.id).join(",")
+      ? "journey:" +
+        JSON.stringify([
+          journey.origin,
+          journey.destination,
+          journey.busLegs,
+          journey.stops.map((s) => s.id),
+        ])
       : stops.map((s) => s.id).join(",");
-    if (key && (key !== fitted.current || lastJourney.current !== journey)) {
+    if (fleetFitted.current.key !== key) {
+      fleetFitted.current = { key, lines: new Set(), userFocused: false };
+    }
+    const fleetLines = journey
+      ? new Set(
+          vehicles.map(
+            (v) =>
+              v.lineId ??
+              v.lineCode ??
+              journey.busLegs?.[0]?.lineCode ??
+              "fleet",
+          ),
+        )
+      : new Set<string>();
+    const firstFleet = [...fleetLines].some(
+      (id) => !fleetFitted.current.lines.has(id),
+    );
+    if (
+      key &&
+      (key !== fitted.current ||
+        (!fleetFitted.current.userFocused &&
+          (lastJourney.current !== journey || firstFleet)))
+    ) {
       const points = framing.map((s) => [s.lat, s.lon] as L.LatLngTuple);
       pendingFocus.current = null;
       pendingBounds.current = L.latLngBounds(points);
@@ -136,6 +204,7 @@ export default function TransitMap({
       fitted.current = "";
       pendingBounds.current = null;
     }
+    for (const id of fleetLines) fleetFitted.current.lines.add(id);
     lastJourney.current = journey;
   }, [stops, vehicles, selectedStop, onSelectStop, location, journey]);
   useEffect(() => {
@@ -239,6 +308,7 @@ export default function TransitMap({
       stops.find((x) => x.id === selectedStop) ??
       (selectedStop ? network?.byId.get(selectedStop) : undefined);
     if (s && map.current) {
+      fleetFitted.current.userFocused = true;
       pendingBounds.current = null;
       pendingFocus.current = {
         point: [s.lat, s.lon],
@@ -249,6 +319,7 @@ export default function TransitMap({
   }, [selectedStop]);
   useEffect(() => {
     if (location && map.current) {
+      fleetFitted.current.userFocused = true;
       pendingBounds.current = null;
       pendingFocus.current = { point: location, zoom: 15 };
       fitWhenVisible(map.current);

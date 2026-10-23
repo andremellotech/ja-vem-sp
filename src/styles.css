@@ -2291,6 +2291,80 @@ code {
   pointer-events: none;
   box-shadow: 0 2px 7px #193a310b;
 }
+.journey-fleet {
+  border: 1px solid #dce5d2;
+  border-radius: 10px;
+  background: #fffffff5;
+  padding: 12px;
+  margin: 0 0 16px;
+  color: #285044;
+  font-size: 13px;
+}
+.journey-fleet-heading {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.journey-fleet-heading button {
+  margin-left: auto;
+  min-width: 36px;
+  min-height: 36px;
+  display: grid;
+  place-items: center;
+  background: #f1f6ed;
+  border: 1px solid #dce5d2;
+  border-radius: 7px;
+  color: inherit;
+  cursor: pointer;
+}
+.journey-fleet-heading button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.journey-fleet-line {
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+}
+.journey-fleet-line small {
+  display: block;
+  margin-top: 3px;
+}
+.journey-fleet-note {
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 9px 0 0;
+}
+.journey-fleet-map {
+  box-shadow: 0 2px 8px #193a3115;
+  font-size: 11px;
+  margin-bottom: 0;
+}
+.map-journey-summary {
+  position: absolute;
+  top: 75px;
+  left: 24px;
+  z-index: 3;
+  width: min(340px, calc(100% - 100px));
+  max-height: calc(100% - 170px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.map-journey-summary .map-route-count {
+  position: static;
+  max-width: none;
+}
+@media (max-width: 740px) {
+  .map-journey-summary {
+    left: 16px;
+    width: calc(100% - 94px);
+  }
+  .journey-fleet-heading button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
 @media (max-width: 740px) {
   .journey-layout .sidebar {
     padding-top: 20px;

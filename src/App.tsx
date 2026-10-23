@@ -41,6 +41,8 @@ import type { JourneyMapSelection, Point } from "./features/journey/types";
 import { loadStopsForLine } from "./features/journey/line-stops";
 import { loadNetwork, type NetStopIndex } from "./features/stops/network";
 import { searchTransit } from "./features/search/transit";
+import { useJourneyVehicles } from "./features/journey/useJourneyVehicles";
+import JourneyVehiclesStatus from "./features/journey/JourneyVehiclesStatus";
 import {
   loadFavorites,
   saveFavorites,
@@ -115,6 +117,11 @@ export default function App({
     useState<JourneyMapSelection | null>(null);
   const [googleSelection, setGoogleSelection] =
     useState<GoogleEmbedSelection | null>(null);
+  const journeyFleet = useJourneyVehicles(
+    journeySelection?.busLegs,
+    apiBase,
+    new URL(import.meta.env.BASE_URL || "./", window.location.href).href,
+  );
   const [lineLoading, setLineLoading] = useState(false);
   const [stopStatus, setStopStatus] = useState<"loading" | "ready" | "error">(
     "loading",
@@ -734,6 +741,9 @@ export default function App({
             </button>
           </div>
           <div className="journey-pane" id="journey-panel" hidden={!isJourney}>
+            {!!journeySelection?.busLegs?.length && (
+              <JourneyVehiclesStatus fleet={journeyFleet} />
+            )}
             <JourneyPlanner
               active={isJourney}
               deviceLocation={
@@ -1119,7 +1129,7 @@ export default function App({
               <TransitMap
                 network={line || journeySelection ? null : network}
                 stops={journeySelection ? [] : mapStops}
-                vehicles={vehicles}
+                vehicles={journeySelection ? journeyFleet.vehicles : vehicles}
                 selectedStop={stop}
                 onSelectStop={(id) => {
                   if (journeySelection?.railStopIds?.includes(id)) return;
@@ -1175,13 +1185,24 @@ export default function App({
                 </button>
               </div>
               {(line || journeySelection) && (
-                <div className="map-route-count" role="status">
-                  {line
-                    ? `${stops.length} paradas desta linha`
-                    : journeySelection!.stops.length
-                      ? `${journeySelection!.stops.length} paradas/estações das linhas usadas`
-                      : "Caminhada no mapa"}{" "}
-                  · outros pontos ocultos
+                <div
+                  className={
+                    journeySelection?.busLegs?.length
+                      ? "map-journey-summary"
+                      : undefined
+                  }
+                >
+                  <div className="map-route-count" role="status">
+                    {line
+                      ? `${stops.length} paradas desta linha`
+                      : journeySelection!.stops.length
+                        ? `${journeySelection!.stops.length} paradas/estações das linhas usadas`
+                        : "Caminhada no mapa"}{" "}
+                    · outros pontos ocultos
+                  </div>
+                  {!!journeySelection?.busLegs?.length && (
+                    <JourneyVehiclesStatus fleet={journeyFleet} compact />
+                  )}
                 </div>
               )}
               {!line && !journeySelection && (
