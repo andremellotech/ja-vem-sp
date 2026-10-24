@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Check, Globe2, MapPin, Search, X } from "lucide-react";
 import { searchAddresses, type AddressScope } from "./geocoder";
+import { canSearchAddressLots, searchAddressLots } from "./address-lots";
 import type { Place } from "./types";
 import PointPicker from "./PointPicker";
 type Props = {
@@ -12,6 +13,7 @@ type Props = {
   endpoint?: string;
   id?: "origin" | "destination";
   active?: boolean;
+  addressApiBase?: string;
 };
 export default function AddressField({
   label,
@@ -22,6 +24,7 @@ export default function AddressField({
   endpoint,
   id = "origin",
   active = true,
+  addressApiBase = "",
 }: Props) {
   const fieldId = useId(),
     inputRef = useRef<HTMLInputElement>(null),
@@ -35,6 +38,7 @@ export default function AddressField({
     [pending, setPending] = useState<Place | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
+    [numberNote, setNumberNote] = useState(""),
     [searched, setSearched] = useState(false),
     [open, setOpen] = useState(false),
     [highlighted, setHighlighted] = useState(-1),
@@ -56,6 +60,7 @@ export default function AddressField({
     setPending(null);
     setBusy(false);
     setError("");
+    setNumberNote("");
     setSearched(false);
     setOpen(false);
     setHighlighted(-1);
@@ -66,7 +71,7 @@ export default function AddressField({
     if (active && !selected && !composing && value.trim().length >= 3)
       schedule();
     return cancel;
-  }, [value, selected, active, composing, scope]);
+  }, [value, selected, active, composing, scope, endpoint, addressApiBase]);
   useEffect(
     () => () => {
       cancel();
@@ -83,18 +88,48 @@ export default function AddressField({
     controller.current = c;
     setBusy(true);
     setError("");
+    setNumberNote("");
     setResults([]);
     setPending(null);
     setSearched(true);
     setOpen(false);
     setHighlighted(-1);
-    const key = `${endpoint ?? "default"}:${scope}:${value.trim().toLocaleLowerCase("pt-BR")}`;
+    const key = `${endpoint ?? "default"}:${addressApiBase}:${explicit ? "precise" : "suggest"}:${scope}:${value.trim().toLocaleLowerCase("pt-BR")}`;
     try {
       const saved = cache.current.get(key);
+      const municipal =
+        explicit &&
+        addressApiBase &&
+        scope === "region" &&
+        canSearchAddressLots(value);
+      const lookup = async () => {
+        const [photon, lots] = await Promise.allSettled([
+          searchAddresses(value, c.signal, endpoint, scope),
+          municipal
+            ? searchAddressLots(value, c.signal, addressApiBase)
+            : Promise.resolve([]),
+        ]);
+        const addresses = photon.status === "fulfilled" ? photon.value : [];
+        const numbers = lots.status === "fulfilled" ? lots.value : [];
+        if (photon.status === "rejected" && !numbers.length)
+          throw photon.reason;
+        if (
+          municipal &&
+          activeRef.current &&
+          current === generation.current &&
+          !c.signal.aborted
+        )
+          setNumberNote(
+            lots.status === "rejected"
+              ? "O cadastro municipal não respondeu. Escolha uma referência e marque a entrada no mapa."
+              : numbers.length
+                ? "Número encontrado no cadastro municipal. Confira a entrada no mapa ao escolher o endereço."
+                : "Este número não foi localizado no cadastro municipal. Escolha a rua e marque a entrada no mapa.",
+          );
+        return [...numbers, ...addresses];
+      };
       const found =
-        saved && Date.now() - saved.at < 300000
-          ? saved.places
-          : await searchAddresses(value, c.signal, endpoint, scope);
+        saved && Date.now() - saved.at < 300000 ? saved.places : await lookup();
       if (
         activeRef.current &&
         current === generation.current &&
@@ -124,8 +159,66 @@ export default function AddressField({
     setOpen(false);
     setHighlighted(-1);
     const chosen = { ...place, requestedAddress: value.trim() };
-    if (place.approximate || place.outsideCoverage) setPending(chosen);
-    else onSelect(chosen);
+    if (
+      place.source === "photon" &&
+      place.approximate &&
+      !place.outsideCoverage &&
+      addressApiBase &&
+      scope === "region" &&
+      canSearchAddressLots(value)
+    ) {
+      const current = generation.current,
+        c = new AbortController();
+      controller.current = c;
+      setBusy(true);
+      setPending(chosen);
+      void searchAddressLots(value, c.signal, addressApiBase)
+        .then((lots) => {
+          if (
+            !activeRef.current ||
+            current !== generation.current ||
+            c.signal.aborted
+          )
+            return;
+          if (lots.length) {
+            setResults(lots);
+            setOpen(true);
+            setNumberNote(
+              "O cadastro do número está disponível abaixo. Escolha essa referência para conferir o lote, ou marque a entrada da rua já escolhida no mapa.",
+            );
+            return;
+          }
+          setPending(
+            lots[0] ? { ...lots[0], requestedAddress: value.trim() } : chosen,
+          );
+          setNumberNote(
+            lots.length
+              ? "Número encontrado no GeoSampa; confirme a entrada no mapa."
+              : "Número não localizado no cadastro municipal; marque a entrada no mapa.",
+          );
+          setPointOpen(true);
+        })
+        .catch(() => {
+          if (
+            activeRef.current &&
+            current === generation.current &&
+            !c.signal.aborted
+          ) {
+            setNumberNote(
+              "Cadastro municipal indisponível. Marque a entrada no mapa.",
+            );
+            setPointOpen(true);
+          }
+        })
+        .finally(() => {
+          if (current === generation.current) setBusy(false);
+        });
+      return;
+    }
+    if (place.approximate || place.outsideCoverage) {
+      setPending(chosen);
+      if (place.approximate) setPointOpen(true);
+    } else onSelect(chosen);
   }
   useEffect(() => {
     if (open && highlighted >= 0)
@@ -231,7 +324,7 @@ export default function AddressField({
         <p className="address-confirmation">
           <Check size={14} />{" "}
           {selected.source === "map"
-            ? "Ponto marcado por você · número não validado pela base"
+            ? "Entrada marcada por você · confira o acesso"
             : selected.source === "device"
               ? "Localização confirmada"
               : selected.approximate
@@ -278,6 +371,9 @@ export default function AddressField({
       </button>
       {pointOpen && active && (
         <PointPicker
+          boundary={(pending ?? selected ?? results[0])?.boundary}
+          lotPolygons={(pending ?? selected ?? results[0])?.lotPolygons}
+          referenceLabel={(pending ?? selected ?? results[0])?.label}
           initial={
             pending ??
             selected ??
@@ -315,6 +411,26 @@ export default function AddressField({
       {busy && (
         <p className="address-status" role="status">
           Consultando endereços…
+        </p>
+      )}
+      {numberNote && (
+        <p className="address-status" role="status">
+          {numberNote}
+        </p>
+      )}
+      {!selected && addressApiBase && (
+        <p className="address-privacy">
+          Para conferir rua e número em São Paulo, clique em Localizar endereço
+          ou escolha uma sugestão aproximada. Essa consulta passa pela nossa API
+          e pelo{" "}
+          <a
+            href="https://geosampa.prefeitura.sp.gov.br/"
+            target="_blank"
+            rel="noreferrer"
+          >
+            GeoSampa
+          </a>
+          . O lote cadastrado é uma referência; a entrada é escolhida no mapa.
         </p>
       )}
       {!selected && (
@@ -370,8 +486,14 @@ export default function AddressField({
                 <MapPin size={16} />
                 <span>
                   {place.label}
-                  {place.approximate && (
-                    <small>Ponto aproximado · confira o endereço</small>
+                  {place.source === "geosampa" ? (
+                    <small>
+                      Número cadastrado · confirme a entrada no mapa
+                    </small>
+                  ) : (
+                    place.approximate && (
+                      <small>Ponto aproximado · confira o endereço</small>
+                    )
                   )}
                   {place.outsideCoverage && (
                     <small>
@@ -392,9 +514,11 @@ export default function AddressField({
                 Você digitou: <strong>{pending.requestedAddress}</strong>.{" "}
               </span>
             )}
-            {pending.approximate
-              ? "O endereço completo, incluindo o número, não foi confirmado. Confira este ponto aproximado: "
-              : "Confira o local antes de continuar: "}
+            {pending.source === "geosampa"
+              ? "O número foi encontrado no cadastro municipal. Confira a entrada do imóvel no mapa: "
+              : pending.approximate
+                ? "O endereço completo, incluindo o número, não foi confirmado. Confira este ponto aproximado: "
+                : "Confira o local antes de continuar: "}
             <strong>{pending.label}</strong>.
           </p>
           {pending.outsideCoverage && (
@@ -404,9 +528,20 @@ export default function AddressField({
               disponibilidade de metrô/trem depende da base de trajetos.
             </p>
           )}
-          <button type="button" onClick={() => onSelect(pending)}>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              if (pending.approximate) {
+                cancel();
+                setBusy(false);
+                setOpen(false);
+                setPointOpen(true);
+              } else onSelect(pending);
+            }}
+          >
             {pending.approximate
-              ? "Usar este ponto aproximado"
+              ? "Confirmar entrada no mapa"
               : "Usar este local"}
           </button>
         </div>

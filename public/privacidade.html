@@ -31,6 +31,22 @@
         carro, os pontos escolhidos são enviados ao serviço de rotas descrito
         abaixo.
       </p>
+      <p>
+        Em São Paulo, ao clicar em localizar um endereço com número ou escolher
+        uma sugestão aproximada, rua e número são enviados pela API do Já Vem SP
+        ao serviço público GeoSampa da Prefeitura. A resposta contém a área do
+        lote cadastrado; ela não confirma a posição da entrada do imóvel. São
+        consultados somente nome da via, número, identificador do logradouro e
+        geometria. Não consultamos nome de proprietário ou dados fiscais.
+        Resultados ficam em cache temporário para reduzir consultas. Os serviços
+        envolvidos podem processar IP e registros técnicos.
+      </p>
+      <p>
+        Coordenadas ou links de ponto Google Maps colados no seletor são lidos
+        localmente, sem requisitar o link ao Google ou expandir links curtos.
+        Somente após aplicar e confirmar esse ponto ele passa a ser usado no
+        planejamento e nas consultas de caminhada ou carro descritas abaixo.
+      </p>
       <h2>Trajetos internos, caminhada e carro</h2>
       <p>
         O site publicado mantém o quadro Google desativado e não usa chave

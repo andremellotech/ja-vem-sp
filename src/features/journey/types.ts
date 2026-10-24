@@ -5,7 +5,9 @@ export type Place = Point & {
   id: string;
   label: string;
   approximate: boolean;
-  source: "photon" | "device" | "map";
+  source: "photon" | "geosampa" | "device" | "map";
+  boundary?: Point[];
+  lotPolygons?: Point[][][];
   requestedAddress?: string;
   referenceLabel?: string;
   city?: string;

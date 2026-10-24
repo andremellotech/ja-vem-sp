@@ -770,6 +770,7 @@ export default function App({
               <JourneyVehiclesStatus fleet={journeyFleet} />
             )}
             <JourneyPlanner
+              addressApiBase={apiBase}
               active={isJourney}
               deviceLocation={
                 location ? { lat: location[0], lon: location[1] } : null

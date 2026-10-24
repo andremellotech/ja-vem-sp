@@ -45,7 +45,7 @@ const normalize = (value: string) =>
     .map((word) => aliases[word] ?? word)
     .join(" ");
 const houseKey = (value: string) => value.toLowerCase().replace(/[.\s-]/g, "");
-function parseQuery(query: string) {
+export function parseQuery(query: string) {
   const parts = query
     .split(",")
     .map((part) => part.trim())

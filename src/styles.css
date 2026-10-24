@@ -2143,6 +2143,37 @@ code {
 .point-picker h4 {
   margin: 0 0 8px;
 }
+.point-picker-dialog {
+  position: fixed;
+  width: min(760px, calc(100vw - 24px));
+  max-width: none;
+  max-height: calc(100dvh - 24px);
+  margin: auto;
+  padding: clamp(14px, 3vw, 24px);
+  overflow-y: auto;
+  color: var(--ink);
+  box-shadow: 0 20px 90px #143c3155;
+}
+.point-picker-dialog::backdrop {
+  background: #102c2899;
+}
+.point-picker-dialog .point-picker-map {
+  height: clamp(220px, 42dvh, 420px);
+}
+.point-picker-dialog .point-picker-actions {
+  position: sticky;
+  bottom: -1px;
+  background: #fff;
+  padding: 8px 0;
+}
+.point-picker-paste {
+  padding-top: 12px;
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.point-picker-lot {
+  color: #8b632b;
+}
 .point-picker p {
   font-size: 13px;
   line-height: 1.6;
