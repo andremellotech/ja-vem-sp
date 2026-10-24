@@ -2,24 +2,33 @@ import { useEffect, useId, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Point } from "./types";
+import { parseMapPoint } from "./map-point-input";
 export default function PointPicker({
   initial,
   address,
   onConfirm,
   onCancel,
+  boundary,
+  lotPolygons,
+  referenceLabel,
 }: {
   initial: Point;
   address: string;
   onConfirm: (point: Point) => void;
   onCancel: () => void;
+  boundary?: Point[];
+  lotPolygons?: Point[][][];
+  referenceLabel?: string;
 }) {
-  const host = useRef<HTMLDivElement>(null),
+  const dialog = useRef<HTMLDialogElement>(null),
+    host = useRef<HTMLDivElement>(null),
     map = useRef<L.Map | null>(null),
     pin = useRef<L.Marker | null>(null);
   const [point, setPoint] = useState<Point | null>(null),
     [lat, setLat] = useState(""),
     [lon, setLon] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(""),
+    [pasted, setPasted] = useState("");
   const id = useId();
   function place(p: Point) {
     if (
@@ -36,6 +45,12 @@ export default function PointPicker({
     pin.current?.setLatLng([p.lat, p.lon]);
   }
   useEffect(() => {
+    const d = dialog.current;
+    const previous = document.activeElement as HTMLElement | null;
+    if (d && !d.open) {
+      if (typeof d.showModal === "function") d.showModal();
+      else d.setAttribute("open", "");
+    }
     if (!host.current) return;
     const m = L.map(host.current).setView([initial.lat, initial.lon], 17);
     map.current = m;
@@ -44,8 +59,25 @@ export default function PointPicker({
       attribution:
         '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(m);
+    if (lotPolygons?.length)
+      L.polygon(
+        lotPolygons.map((p) =>
+          p.map((r) => r.map((v) => [v.lat, v.lon] as [number, number])),
+        ),
+        { color: "#bd721d", weight: 2, fillOpacity: 0.12 },
+      ).addTo(m);
+    else if (boundary?.length)
+      L.polygon(
+        boundary.map((p) => [p.lat, p.lon] as [number, number]),
+        {
+          color: "#bd721d",
+          weight: 2,
+          fillOpacity: 0.12,
+        },
+      ).addTo(m);
     const marker = L.marker([initial.lat, initial.lon], {
       draggable: true,
+      title: "Escolher este ponto",
       icon: L.divIcon({
         className: "address-location-pin",
         html: '<span aria-hidden="true">📍</span>',
@@ -61,6 +93,10 @@ export default function PointPicker({
       const p = marker.getLatLng();
       place({ lat: p.lat, lon: p.lng });
     });
+    marker.on("click", () => {
+      const p = marker.getLatLng();
+      place({ lat: p.lat, lon: p.lng });
+    });
     const resize = new ResizeObserver(() => m.invalidateSize());
     resize.observe(host.current);
     return () => {
@@ -68,6 +104,7 @@ export default function PointPicker({
       m.remove();
       map.current = null;
       pin.current = null;
+      previous?.focus();
     };
   }, []);
   function useCoordinates() {
@@ -88,21 +125,84 @@ export default function PointPicker({
     place(p);
     map.current?.setView([p.lat, p.lon], 18);
   }
+  function usePasted() {
+    try {
+      const p = parseMapPoint(pasted);
+      place(p);
+      map.current?.setView([p.lat, p.lon], 18);
+    } catch (e) {
+      setPoint(null);
+      setError(
+        e instanceof Error ? e.message : "Não foi possível usar este ponto.",
+      );
+    }
+  }
   return (
-    <section className="point-picker" aria-label="Marcar entrada no mapa">
-      <h4>Marque a entrada do local</h4>
+    <dialog
+      ref={dialog}
+      className="point-picker point-picker-dialog"
+      aria-labelledby={id + "-title"}
+      onCancel={(e) => {
+        e.preventDefault();
+        onCancel();
+      }}
+    >
+      <h4 id={id + "-title"}>Marque a entrada do local</h4>
       <p>
         <strong>{address}</strong>
       </p>
+      {referenceLabel && referenceLabel !== address && (
+        <p>
+          Referência pesquisada: <strong>{referenceLabel}</strong>
+        </p>
+      )}
       <p>
-        Toque no mapa ou arraste o marcador até a entrada do imóvel. O marcador
-        inicial é uma referência; o número não foi validado pela base.
+        Toque na entrada, arraste o marcador ou mova o mapa e use o centro. O
+        ponto inicial é uma referência; confirme onde você vai entrar ou sair.
       </p>
+      {boundary?.length ? (
+        <p className="point-picker-lot">
+          Área do lote cadastrado no GeoSampa. O cadastro do número não confirma
+          a posição da porta.
+        </p>
+      ) : null}
       <div
         ref={host}
         className="point-picker-map"
         aria-label="Mapa para escolher o ponto"
       />
+      <button
+        type="button"
+        onClick={() => {
+          const p = map.current?.getCenter();
+          if (p) place({ lat: p.lat, lon: p.lng });
+        }}
+      >
+        Usar centro do mapa
+      </button>
+      <div className="point-picker-paste">
+        <label htmlFor={id + "-point"}>Coordenadas ou link do ponto</label>
+        <input
+          id={id + "-point"}
+          value={pasted}
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="-23.5614, -46.6559 ou link Google Maps"
+          onChange={(e) => {
+            setPasted(e.target.value);
+            setPoint(null);
+            setError("");
+          }}
+        />
+        <button type="button" onClick={usePasted}>
+          Aplicar ponto colado
+        </button>
+        <p>
+          Já encontrou no Google Maps? Copie as coordenadas do local e cole
+          acima. A leitura é feita neste site, sem consultar o Google. Links
+          curtos precisam ser abertos por você para copiar as coordenadas.
+        </p>
+      </div>
       <details>
         <summary>Informar latitude e longitude</summary>
         <label htmlFor={id + "-lat"}>Latitude</label>
@@ -149,6 +249,6 @@ export default function PointPicker({
           Cancelar marcação
         </button>
       </div>
-    </section>
+    </dialog>
   );
 }

@@ -1,5 +1,6 @@
 import { ApiError } from "../../src/contracts";
 import { createSptrans } from "./sptrans";
+import { findAddressLots, validAddressQuery } from "./geosampa";
 const clients = new WeakMap<
   typeof fetch,
   { token: string; api: ReturnType<typeof createSptrans> }
@@ -60,6 +61,55 @@ export async function handleRequest(
       source: "SPTrans",
       rateLimited: !!env.RATE_LIMITER,
     });
+  if (p === "/api/addresses") {
+    const street = (url.searchParams.get("street") ?? "").trim(),
+      number = (url.searchParams.get("number") ?? "").trim();
+    if (!validAddressQuery(street, number))
+      return json(
+        {
+          error: {
+            code: "INVALID_REQUEST",
+            message:
+              "Informe rua e número para consultar o cadastro municipal.",
+          },
+        },
+        400,
+      );
+    try {
+      if (
+        env.RATE_LIMITER &&
+        !(
+          await env.RATE_LIMITER.limit({
+            key: request.headers.get("CF-Connecting-IP") || "unknown",
+          })
+        ).success
+      )
+        return json(
+          {
+            error: {
+              code: "RATE_LIMITED",
+              message: "Muitas consultas. Aguarde um instante.",
+            },
+          },
+          429,
+        );
+      return json({
+        data: await findAddressLots(street, number, fetcher),
+        source: "GeoSampa",
+      });
+    } catch (e) {
+      return json(
+        {
+          error: {
+            code: "ADDRESS_UNAVAILABLE",
+            message:
+              "Não foi possível consultar os números do GeoSampa. Marque a entrada no mapa.",
+          },
+        },
+        502,
+      );
+    }
+  }
   const line = p.match(/^\/api\/lines\/([^/]+)\/(stops|vehicles)$/),
     stop = p.match(/^\/api\/stops\/([^/]+)\/arrivals$/);
   if (p !== "/api/lines" && p !== "/api/stops" && !line && !stop)

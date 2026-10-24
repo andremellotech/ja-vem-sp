@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   cleanup,
   act,
@@ -46,6 +46,15 @@ function Harness({ active = true }: { active?: boolean }) {
     </>
   );
 }
+beforeEach(() =>
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  ),
+);
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -207,11 +216,12 @@ it("exige confirmação do ponto aproximado e mostra marcação como texto", asy
   fireEvent.click(screen.getByRole("button", { name: "Localizar origem" }));
   fireEvent.click(await screen.findByRole("option", { name: /<img src=x>/ }));
   expect(screen.getByText("sem ponto")).toBeTruthy();
-  expect(document.querySelector("img")).toBeNull();
+  expect(document.querySelector('img[src="x"]')).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Usar centro do mapa" }));
   fireEvent.click(
-    screen.getByRole("button", { name: "Usar este ponto aproximado" }),
+    screen.getByRole("button", { name: "Confirmar ponto no mapa" }),
   );
-  expect(screen.getByText("N:2")).toBeTruthy();
+  expect(screen.getByText(/^map:/)).toBeTruthy();
 });
 it("ignora resposta antiga mesmo quando o fornecedor ignora abort", async () => {
   let finish!: (r: Response) => void;

@@ -40,6 +40,7 @@ type Props = {
   onShowMap?: () => void;
   onFocusStep?: (id: string | null) => void;
   retainedJourneyId?: string | null;
+  addressApiBase?: string;
   active?: boolean;
   deviceLocation?: Point | null;
   googleEmbedKey?: string;
@@ -53,6 +54,7 @@ export default function JourneyPlanner({
   onShowMap,
   onFocusStep,
   retainedJourneyId = null,
+  addressApiBase = "",
   active = true,
   deviceLocation,
   googleEmbedKey = "",
@@ -563,6 +565,7 @@ export default function JourneyPlanner({
           . Os endereços não são salvos pelo site.
         </p>
         <AddressField
+          addressApiBase={addressApiBase}
           active={active}
           id="origin"
           label="De onde você vai sair?"
@@ -614,6 +617,7 @@ export default function JourneyPlanner({
           </p>
         )}
         <AddressField
+          addressApiBase={addressApiBase}
           active={active}
           id="destination"
           label="Para onde você vai?"
